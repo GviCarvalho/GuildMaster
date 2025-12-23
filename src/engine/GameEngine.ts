@@ -374,25 +374,28 @@ export class GameEngine {
    * Execute a single random world action
    */
   private executeRandomAction(): void {
-    const actionType = this.random.nextInt(0, 5);
+    const actionType = this.random.nextInt(0, 6);
 
     switch (actionType) {
       case 0: // NPC movement
         this.actionNPCMovement();
         break;
-      case 1: // NPC trade
+      case 1: // NPC trade/buy
         this.actionNPCTrade();
         break;
       case 2: // NPC work
         this.actionNPCWork();
         break;
-      case 3: // Guild event
+      case 3: // NPC eat (satisfy hunger)
+        this.actionNPCEat();
+        break;
+      case 4: // Guild event
         this.actionGuildEvent();
         break;
-      case 4: // Random encounter
+      case 5: // Random encounter (social)
         this.actionRandomEncounter();
         break;
-      case 5: // Market fluctuation
+      case 6: // Market fluctuation
         this.actionMarketFluctuation();
         break;
     }
@@ -572,8 +575,8 @@ export class GameEngine {
       
       this.addReportLog(`${npc.name} trabalhou como ${npc.job} e produziu ${outputItem}.`);
       
-      // Satisfy hunger need slightly (less than eating)
-      satisfyNeed(npc, 'hunger', 3);
+      // Work makes you hungry
+      modifyNeed(npc, 'hunger', -5);
       
       // Decay fun need (work is not fun)
       modifyNeed(npc, 'fun', -2);
@@ -600,6 +603,65 @@ export class GameEngine {
     };
     
     return jobOutputs[job] || 'item';
+  }
+
+  /**
+   * NPC eats food to satisfy hunger
+   */
+  private actionNPCEat(): void {
+    if (this.state.npcs.length === 0) return;
+
+    const npc = this.random.choice(this.state.npcs);
+    
+    // Look for food items in inventory
+    const foodItems = ['carne', 'peixe', 'grãos', 'comida'];
+    let foundFood = false;
+    
+    for (const foodItem of foodItems) {
+      if (inventoryHas(npc, foodItem, 1)) {
+        // Consume food
+        inventoryRemove(npc, foodItem, 1, this.indices);
+        
+        // Satisfy hunger significantly
+        satisfyNeed(npc, 'hunger', 30);
+        
+        this.addReportLog(`${npc.name} comeu ${foodItem}.`);
+        foundFood = true;
+        break;
+      }
+    }
+    
+    // If no food found, try to buy some at the market
+    if (!foundFood) {
+      const marketPOI = this.state.worldMap.getPOI('market');
+      
+      // If at market, buy food from city or another NPC
+      if (marketPOI && this.isNPCAtPOI(npc, marketPOI)) {
+        const foodCost = this.random.nextInt(5, 15);
+        
+        // Try to buy from city treasury (representing shops)
+        const success = transferGold(this.state, npc.id, 'city', foodCost, 'buy food');
+        
+        if (success) {
+          // Add food to inventory
+          inventoryAdd(npc, 'comida', 1, this.indices);
+          this.addReportLog(`${npc.name} comprou comida por ${foodCost} moedas.`);
+          
+          // Consume it immediately
+          inventoryRemove(npc, 'comida', 1, this.indices);
+          satisfyNeed(npc, 'hunger', 25);
+        }
+      } else if (marketPOI && !npc.targetPos) {
+        // Move to market to buy food
+        npc.targetPos = { x: marketPOI.pos.x, y: marketPOI.pos.y };
+        const path = findPath(npc.pos, npc.targetPos, this.state.worldMap);
+        if (path.length > 0) {
+          npc.currentPath = path;
+        } else {
+          npc.targetPos = undefined;
+        }
+      }
+    }
   }
 
   private actionGuildEvent(): void {
@@ -749,6 +811,10 @@ export class GameEngine {
       // Execute action tick every 2 seconds
       if (this.state.currentTime - this.lastActionTick >= ACTION_TICK_INTERVAL) {
         this.lastActionTick = this.state.currentTime;
+        
+        // Phase 3: Apply passive needs decay to all NPCs
+        this.applyNeedsDecay();
+        
         this.executeWorldActions();
         
         // Phase 3: Validate economy invariants in development mode
@@ -757,6 +823,22 @@ export class GameEngine {
           console.error('[Economy] Invariant violation detected!', validation);
         }
       }
+    }
+  }
+  
+  /**
+   * Apply passive needs decay to all NPCs
+   */
+  private applyNeedsDecay(): void {
+    // Small decay rates (per 2-second tick)
+    const hungerDecay = 0.5;
+    const socialDecay = 0.3;
+    const funDecay = 0.4;
+    
+    for (const npc of this.state.npcs) {
+      modifyNeed(npc, 'hunger', -hungerDecay);
+      modifyNeed(npc, 'social', -socialDecay);
+      modifyNeed(npc, 'fun', -funDecay);
     }
   }
 
