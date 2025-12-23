@@ -95,7 +95,7 @@ export class GameEngine {
    */
   update(deltaTime: number): void {
     this.state.currentTime += deltaTime;
-    this.notify();
+    // Note: We don't notify here as time updates don't affect UI rendering
   }
 
   /**

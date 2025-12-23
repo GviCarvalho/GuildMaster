@@ -6,16 +6,32 @@ import type { GameState } from '../engine';
 
 export class GameUI {
   private rootElement: HTMLElement;
+  private questCompleteHandler?: (questId: string) => void;
 
   constructor(rootElement: HTMLElement) {
     this.rootElement = rootElement;
+    // Set up event delegation for quest buttons
+    this.rootElement.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'BUTTON' && target.dataset.questId) {
+        if (this.questCompleteHandler) {
+          this.questCompleteHandler(target.dataset.questId);
+        }
+      }
+    });
   }
 
   /**
    * Render the game UI based on current state
    */
   render(state: GameState, onQuestComplete: (questId: string) => void): void {
+    this.questCompleteHandler = onQuestComplete;
     this.rootElement.innerHTML = `
+      <style>
+        button:hover {
+          transform: scale(1.05) !important;
+        }
+      </style>
       <div style="padding: 20px; max-width: 1200px; margin: 0 auto;">
         <header style="margin-bottom: 30px;">
           <h1 style="font-size: 2.5em; margin-bottom: 10px; color: #ffd700;">
@@ -105,25 +121,5 @@ export class GameUI {
         </section>
       </div>
     `;
-
-    // Add event listeners for quest buttons
-    this.rootElement.querySelectorAll('button[data-quest-id]').forEach((button) => {
-      button.addEventListener('click', (e) => {
-        const questId = (e.target as HTMLButtonElement).dataset.questId;
-        if (questId) {
-          onQuestComplete(questId);
-        }
-      });
-    });
-
-    // Add hover effect to buttons
-    this.rootElement.querySelectorAll('button').forEach((button) => {
-      button.addEventListener('mouseenter', () => {
-        (button as HTMLElement).style.transform = 'scale(1.05)';
-      });
-      button.addEventListener('mouseleave', () => {
-        (button as HTMLElement).style.transform = 'scale(1)';
-      });
-    });
   }
 }
