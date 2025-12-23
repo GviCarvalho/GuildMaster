@@ -73,20 +73,24 @@ export class WorldMap {
           (x % mainRoadInterval > 1 && x % mainRoadInterval < mainRoadInterval - 1) &&
           (y % mainRoadInterval > 1 && y % mainRoadInterval < mainRoadInterval - 1)
         ) {
-          // 70% chance of building in the interior
-          if (Math.random() < 0.7) {
+          // 70% chance of building in the interior - use deterministic pattern
+          const hash = (x * 73 + y * 31) % 10;
+          if (hash < 7) {
             this.setTile(x, y, TileType.Building, false);
           }
         }
       }
     }
 
-    // Add water/blocked areas on edges
-    for (let i = 0; i < 10; i++) {
-      const x = Math.floor(Math.random() * 8);
-      const y = Math.floor(Math.random() * 8);
-      this.setTile(x, y, TileType.Water, false);
-      this.setTile(this.width - 1 - x, this.height - 1 - y, TileType.Water, false);
+    // Add water/blocked areas on edges (deterministic positions)
+    const waterPositions = [
+      [2, 3], [5, 1], [1, 6], [4, 2], [6, 5],
+      [3, 4], [7, 0], [0, 7], [2, 1], [5, 6]
+    ];
+    
+    for (const [dx, dy] of waterPositions) {
+      this.setTile(dx, dy, TileType.Water, false);
+      this.setTile(this.width - 1 - dx, this.height - 1 - dy, TileType.Water, false);
     }
 
     // Initialize POIs
@@ -128,9 +132,16 @@ export class WorldMap {
       },
     ];
 
-    // Ensure POI locations are walkable
+    // Ensure POI locations are walkable (including footprint area)
     this.pois.forEach((poi) => {
-      this.setTile(poi.pos.x, poi.pos.y, TileType.Road, true);
+      const width = poi.footprint?.x || 1;
+      const height = poi.footprint?.y || 1;
+      
+      for (let dy = 0; dy < height; dy++) {
+        for (let dx = 0; dx < width; dx++) {
+          this.setTile(poi.pos.x + dx, poi.pos.y + dy, TileType.Road, true);
+        }
+      }
     });
   }
 

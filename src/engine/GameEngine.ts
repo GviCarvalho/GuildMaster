@@ -184,6 +184,12 @@ export class GameEngine {
         attempts++;
       }
 
+      // Fallback to a known walkable position (0,0 is always a road)
+      if (!worldMap.isWalkable(x, y)) {
+        x = 0;
+        y = 0;
+      }
+
       npcs.push({
         id: `npc-${i + 1}`,
         name: `${firstName} ${lastName}`,
@@ -394,7 +400,13 @@ export class GameEngine {
       // NPC needs to move to market first
       if (marketPOI && !npc1.targetPos) {
         npc1.targetPos = { x: marketPOI.pos.x, y: marketPOI.pos.y };
-        npc1.currentPath = findPath(npc1.pos, npc1.targetPos, this.state.worldMap);
+        const path = findPath(npc1.pos, npc1.targetPos, this.state.worldMap);
+        if (path.length > 0) {
+          npc1.currentPath = path;
+        } else {
+          // No valid path, clear target
+          npc1.targetPos = undefined;
+        }
       }
       return;
     }
@@ -430,7 +442,13 @@ export class GameEngine {
       // NPC needs to move to work location first
       if (!npc.targetPos) {
         npc.targetPos = { x: requiredPOI.pos.x, y: requiredPOI.pos.y };
-        npc.currentPath = findPath(npc.pos, npc.targetPos, this.state.worldMap);
+        const path = findPath(npc.pos, npc.targetPos, this.state.worldMap);
+        if (path.length > 0) {
+          npc.currentPath = path;
+        } else {
+          // No valid path, clear target
+          npc.targetPos = undefined;
+        }
       }
       return;
     }
