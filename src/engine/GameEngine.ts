@@ -3,6 +3,8 @@
  */
 
 import type { GameState, Player, Quest, NPC, ReportLogEntry } from './types';
+import { WorldMap, type POI } from './world/map';
+import { findPath, isPathValid } from './systems/pathfinding';
 
 // Constants for simulation
 const SECONDS_PER_DAY = 1200; // 20 minutes per day
@@ -70,8 +72,12 @@ export class GameEngine {
       },
     ];
 
+    // Initialize world map (64x64) and generate city
+    const worldMap = new WorldMap(64, 64);
+    worldMap.generateCity();
+
     // Initialize 100 NPCs
-    const npcs = this.generateInitialNPCs(100);
+    const npcs = this.generateInitialNPCs(100, worldMap);
 
     const reportLog: ReportLogEntry[] = [
       {
@@ -89,10 +95,11 @@ export class GameEngine {
       simRunning: false,
       reportLog,
       npcs,
+      worldMap,
     };
   }
 
-  private generateInitialNPCs(count: number): NPC[] {
+  private generateInitialNPCs(count: number, worldMap: WorldMap): NPC[] {
     const firstNames = [
       'João',
       'Maria',
@@ -165,13 +172,22 @@ export class GameEngine {
         }
       }
 
+      // Place NPCs on walkable tiles only
+      let x = this.random.nextInt(0, worldMap.width - 1);
+      let y = this.random.nextInt(0, worldMap.height - 1);
+      
+      // Find a walkable position
+      let attempts = 0;
+      while (!worldMap.isWalkable(x, y) && attempts < 100) {
+        x = this.random.nextInt(0, worldMap.width - 1);
+        y = this.random.nextInt(0, worldMap.height - 1);
+        attempts++;
+      }
+
       npcs.push({
         id: `npc-${i + 1}`,
         name: `${firstName} ${lastName}`,
-        pos: {
-          x: this.random.nextInt(0, 100),
-          y: this.random.nextInt(0, 100),
-        },
+        pos: { x, y },
         money: this.random.nextInt(10, 200),
         job: this.random.choice(jobs),
         traits: npcTraits,
@@ -293,15 +309,70 @@ export class GameEngine {
     }
   }
 
+  /**
+   * Check if NPC is at a specific POI location
+   */
+  private isNPCAtPOI(npc: NPC, poi: POI): boolean {
+    return npc.pos.x === poi.pos.x && npc.pos.y === poi.pos.y;
+  }
+
+  /**
+   * Move NPC one step along its path, or set a new target if needed
+   */
   private actionNPCMovement(): void {
     if (this.state.npcs.length === 0) return;
 
     const npc = this.random.choice(this.state.npcs);
-    const dx = this.random.nextInt(-10, 10);
-    const dy = this.random.nextInt(-10, 10);
-    npc.pos.x = Math.max(0, Math.min(100, npc.pos.x + dx));
-    npc.pos.y = Math.max(0, Math.min(100, npc.pos.y + dy));
-    // Silent action, no report log
+    
+    // If NPC has a current path, move along it
+    if (npc.currentPath && npc.currentPath.length > 0) {
+      const nextPos = npc.currentPath[0];
+      
+      // Verify the path is still valid
+      if (!isPathValid(npc.currentPath, this.state.worldMap)) {
+        // Path is blocked, recompute
+        npc.currentPath = undefined;
+        return;
+      }
+
+      // Move to next position
+      npc.pos = { x: nextPos.x, y: nextPos.y };
+      npc.currentPath.shift();
+
+      // Check if NPC reached their target
+      if (npc.currentPath.length === 0 && npc.targetPos) {
+        const pois = this.state.worldMap.getPOIs();
+        const targetPOI = pois.find(poi => 
+          poi.pos.x === npc.targetPos!.x && poi.pos.y === npc.targetPos!.y
+        );
+        
+        if (targetPOI) {
+          this.addReportLog(`${npc.name} chegou ao ${targetPOI.name}.`);
+        }
+        
+        npc.targetPos = undefined;
+        npc.currentPath = undefined;
+      }
+    } else {
+      // NPC doesn't have a path - occasionally set a random destination
+      if (this.random.next() < 0.3) {
+        const pois = this.state.worldMap.getPOIs();
+        const targetPOI = this.random.choice(pois);
+        
+        // Only set target if not already there
+        if (!this.isNPCAtPOI(npc, targetPOI)) {
+          npc.targetPos = { x: targetPOI.pos.x, y: targetPOI.pos.y };
+          const path = findPath(npc.pos, npc.targetPos, this.state.worldMap);
+          
+          if (path.length > 0) {
+            npc.currentPath = path;
+          } else {
+            // No path found, clear target
+            npc.targetPos = undefined;
+          }
+        }
+      }
+    }
   }
 
   private actionNPCTrade(): void {
@@ -311,6 +382,23 @@ export class GameEngine {
     const npc2 = this.random.choice(
       this.state.npcs.filter((n) => n.id !== npc1.id)
     );
+    
+    // Check if at least one NPC is at the Market or Tavern
+    const marketPOI = this.state.worldMap.getPOI('market');
+    const tavernPOI = this.state.worldMap.getPOI('tavern');
+    
+    const npc1AtMarketOrTavern = (marketPOI && this.isNPCAtPOI(npc1, marketPOI)) || 
+                                  (tavernPOI && this.isNPCAtPOI(npc1, tavernPOI));
+    
+    if (!npc1AtMarketOrTavern) {
+      // NPC needs to move to market first
+      if (marketPOI && !npc1.targetPos) {
+        npc1.targetPos = { x: marketPOI.pos.x, y: marketPOI.pos.y };
+        npc1.currentPath = findPath(npc1.pos, npc1.targetPos, this.state.worldMap);
+      }
+      return;
+    }
+    
     const amount = this.random.nextInt(5, 20);
 
     if (npc1.money >= amount) {
@@ -326,6 +414,27 @@ export class GameEngine {
     if (this.state.npcs.length === 0) return;
 
     const npc = this.random.choice(this.state.npcs);
+    
+    // Determine work location based on job
+    let requiredPOI: POI | undefined;
+    if (npc.job === 'Minerador') {
+      requiredPOI = this.state.worldMap.getPOI('mine');
+    } else if (npc.job === 'Caçador' || npc.job === 'Pescador' || npc.job === 'Agricultor') {
+      requiredPOI = this.state.worldMap.getPOI('forest');
+    } else if (npc.job === 'Mercador') {
+      requiredPOI = this.state.worldMap.getPOI('market');
+    }
+    
+    // Check if NPC is at required location (if any)
+    if (requiredPOI && !this.isNPCAtPOI(npc, requiredPOI)) {
+      // NPC needs to move to work location first
+      if (!npc.targetPos) {
+        npc.targetPos = { x: requiredPOI.pos.x, y: requiredPOI.pos.y };
+        npc.currentPath = findPath(npc.pos, npc.targetPos, this.state.worldMap);
+      }
+      return;
+    }
+    
     const earnings = this.random.nextInt(3, 15);
     npc.money += earnings;
     this.addReportLog(`${npc.name} trabalhou como ${npc.job} e ganhou ${earnings} moedas.`);
@@ -347,15 +456,26 @@ export class GameEngine {
     if (this.state.npcs.length === 0) return;
 
     const npc = this.random.choice(this.state.npcs);
-    const encounters = [
-      `${npc.name} encontrou uma moeda antiga no caminho.`,
-      `${npc.name} ajudou um viajante perdido.`,
-      `${npc.name} testemunhou um duelo na praça.`,
-      `${npc.name} participou de uma festa na taverna.`,
-      `${npc.name} ouviu histórias de terras distantes.`,
-    ];
-    const encounter = this.random.choice(encounters);
-    this.addReportLog(encounter);
+    
+    // Check if NPC is at Tavern for social encounters
+    const tavernPOI = this.state.worldMap.getPOI('tavern');
+    if (tavernPOI && this.isNPCAtPOI(npc, tavernPOI)) {
+      const encounters = [
+        `${npc.name} participou de uma festa na taverna.`,
+        `${npc.name} ouviu histórias de terras distantes.`,
+        `${npc.name} encontrou velhos amigos na taverna.`,
+      ];
+      const encounter = this.random.choice(encounters);
+      this.addReportLog(encounter);
+    } else {
+      const encounters = [
+        `${npc.name} encontrou uma moeda antiga no caminho.`,
+        `${npc.name} ajudou um viajante perdido.`,
+        `${npc.name} testemunhou um duelo na praça.`,
+      ];
+      const encounter = this.random.choice(encounters);
+      this.addReportLog(encounter);
+    }
   }
 
   private actionMarketFluctuation(): void {

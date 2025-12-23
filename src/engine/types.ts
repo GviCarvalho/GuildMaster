@@ -2,6 +2,8 @@
  * Game state and core data structures
  */
 
+import type { WorldMap, Vec2 } from './world/map';
+
 export interface Player {
   name: string;
   gold: number;
@@ -24,6 +26,9 @@ export interface NPC {
   money: number;
   job: string;
   traits: string[];
+  // Navigation fields for pathfinding
+  targetPos?: Vec2;
+  currentPath?: Vec2[];
 }
 
 export interface ReportLogEntry {
@@ -41,4 +46,6 @@ export interface GameState {
   simRunning: boolean;
   reportLog: ReportLogEntry[];
   npcs: NPC[];
+  // Phase 1: Grid-based world map
+  worldMap: WorldMap;
 }
