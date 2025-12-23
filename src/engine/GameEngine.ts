@@ -184,7 +184,8 @@ export class GameEngine {
         attempts++;
       }
 
-      // Fallback to a known walkable position (0,0 is always a road)
+      // Fallback to (0,0) which is guaranteed walkable by map generation
+      // (0,0 is on a main road since 0 % mainRoadInterval === 0)
       if (!worldMap.isWalkable(x, y)) {
         x = 0;
         y = 0;
@@ -316,10 +317,18 @@ export class GameEngine {
   }
 
   /**
-   * Check if NPC is at a specific POI location
+   * Check if NPC is at a specific POI location (within footprint area)
    */
   private isNPCAtPOI(npc: NPC, poi: POI): boolean {
-    return npc.pos.x === poi.pos.x && npc.pos.y === poi.pos.y;
+    const width = poi.footprint?.x || 1;
+    const height = poi.footprint?.y || 1;
+    
+    return (
+      npc.pos.x >= poi.pos.x &&
+      npc.pos.x < poi.pos.x + width &&
+      npc.pos.y >= poi.pos.y &&
+      npc.pos.y < poi.pos.y + height
+    );
   }
 
   /**
