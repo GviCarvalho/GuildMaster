@@ -1,7 +1,6 @@
 /**
  * UI rendering and interaction module
  */
-
 import type { GameState } from '../engine';
 
 export class GameUI {
@@ -10,116 +9,135 @@ export class GameUI {
 
   constructor(rootElement: HTMLElement) {
     this.rootElement = rootElement;
-    // Set up event delegation for quest buttons
+
     this.rootElement.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'BUTTON' && target.dataset.questId) {
-        if (this.questCompleteHandler) {
-          this.questCompleteHandler(target.dataset.questId);
-        }
+      if (target instanceof HTMLButtonElement && target.dataset.questId) {
+        this.questCompleteHandler?.(target.dataset.questId);
       }
     });
   }
 
-  /**
-   * Render the game UI based on current state
-   */
   render(state: GameState, onQuestComplete: (questId: string) => void): void {
     this.questCompleteHandler = onQuestComplete;
+
     this.rootElement.innerHTML = `
-      <style>
-        button:hover {
-          transform: scale(1.05) !important;
-        }
-      </style>
-      <div style="padding: 20px; max-width: 1200px; margin: 0 auto;">
-        <header style="margin-bottom: 30px;">
-          <h1 style="font-size: 2.5em; margin-bottom: 10px; color: #ffd700;">
-            GuildMaster
-          </h1>
-          <p style="font-size: 1.2em; color: #aaa;">
-            Build and manage your guild
-          </p>
-        </header>
+      <div class="gm-stage">
+        <div class="gm-layout">
+          <!-- Left action bar -->
+          <aside class="gm-actions" aria-label="Ações">
+            <button class="gm-action-btn" data-action="passar-dia" title="Passar o dia">🌞</button>
+            <button class="gm-action-btn" data-action="missoes" title="Missões">⚔️</button>
+            <button class="gm-action-btn" data-action="taverna" title="Taverna">🍺</button>
+            <button class="gm-action-btn" data-action="mercado" title="Mercado">🧺</button>
+            <button class="gm-action-btn" data-action="config" title="Configurações">⚙️</button>
+          </aside>
 
-        <section style="margin-bottom: 30px; padding: 20px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
-          <h2 style="font-size: 1.8em; margin-bottom: 15px; color: #ffd700;">
-            Player Stats
-          </h2>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-            <div style="padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 5px;">
-              <div style="font-size: 0.9em; color: #aaa; margin-bottom: 5px;">Name</div>
-              <div style="font-size: 1.3em; font-weight: bold;">${state.player.name}</div>
-            </div>
-            <div style="padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 5px;">
-              <div style="font-size: 0.9em; color: #aaa; margin-bottom: 5px;">Gold</div>
-              <div style="font-size: 1.3em; font-weight: bold; color: #ffd700;">
-                ${state.player.gold} 💰
+          <!-- Center room -->
+          <main class="gm-room">
+            <div class="gm-hud">
+              <div class="gm-hud-card">
+                <div class="gm-hud-title">Dia</div>
+                <div class="gm-hud-value">${state.day ?? state.player.level /* fallback */}</div>
               </div>
-            </div>
-            <div style="padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 5px;">
-              <div style="font-size: 0.9em; color: #aaa; margin-bottom: 5px;">Level</div>
-              <div style="font-size: 1.3em; font-weight: bold; color: #00ff88;">
-                ${state.player.level}
-              </div>
-            </div>
-            <div style="padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 5px;">
-              <div style="font-size: 0.9em; color: #aaa; margin-bottom: 5px;">Experience</div>
-              <div style="font-size: 1.3em; font-weight: bold; color: #00aaff;">
-                ${state.player.experience} XP
-              </div>
-            </div>
-          </div>
-        </section>
 
-        <section style="padding: 20px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
-          <h2 style="font-size: 1.8em; margin-bottom: 15px; color: #ffd700;">
-            Quests
-          </h2>
-          <div style="display: flex; flex-direction: column; gap: 15px;">
-            ${state.quests
-              .map(
-                (quest) => `
-              <div style="padding: 20px; background: ${
-                quest.completed ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.03)'
-              }; border-radius: 5px; border-left: 4px solid ${
-                quest.completed ? '#00ff88' : '#ffd700'
-              };">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
-                  <h3 style="font-size: 1.3em; color: ${quest.completed ? '#00ff88' : '#ffd700'};">
-                    ${quest.title} ${quest.completed ? '✓' : ''}
-                  </h3>
-                  <span style="font-size: 1.1em; color: #ffd700;">
-                    ${quest.reward} 💰
-                  </span>
+              <div class="gm-hud-card">
+                <div class="gm-hud-title">Ouro</div>
+                <div class="gm-hud-value gm-hud-gold">${state.player.gold} pix</div>
+              </div>
+
+              <div class="gm-hud-card">
+                <div class="gm-hud-title">Mestre</div>
+                <div class="gm-hud-value">${state.player.name}</div>
+              </div>
+            </div>
+
+            <div class="gm-room-content">
+              <section class="gm-card">
+                <h2>Interior da Guilda</h2>
+                <div class="gm-small">
+                  A “sala” aqui é só um painel por enquanto — mais tarde dá pra colocar NPCs andando (canvas) por trás.
                 </div>
-                <p style="color: #ccc; margin-bottom: 15px;">
-                  ${quest.description}
-                </p>
-                ${
-                  !quest.completed
-                    ? `
-                  <button 
-                    data-quest-id="${quest.id}"
-                    style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                           color: white; border: none; border-radius: 5px; font-size: 1em; 
-                           cursor: pointer; font-weight: bold; transition: transform 0.2s;">
-                    Complete Quest
-                  </button>
-                `
-                    : `
-                  <div style="color: #00ff88; font-weight: bold;">
-                    ✓ Completed
+                <div style="height: 10px"></div>
+                <div class="gm-list">
+                  <div class="gm-quest">
+                    <div class="gm-quest-title">
+                      <span>📌 Status</span>
+                      <span>Nível ${state.player.level}</span>
+                    </div>
+                    <div class="gm-quest-desc">
+                      Experiência: ${state.player.experience} XP
+                    </div>
                   </div>
-                `
-                }
+
+                  <div class="gm-quest">
+                    <div class="gm-quest-title">
+                      <span>🏰 Objetivo</span>
+                      <span style="color: rgba(255,255,255,0.75)">Reerguer a Guilda</span>
+                    </div>
+                    <div class="gm-quest-desc">
+                      Patrocine aventureiros, organize missões e controle o fluxo de ouro.
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gm-card">
+                <h2>Quadro de Missões</h2>
+                <div class="gm-scroll" style="max-height: 100%;">
+                  <div class="gm-list">
+                    ${state.quests
+                      .slice()
+                      .reverse()
+                      .map((quest) => {
+                        const completed = quest.completed;
+                        const border = completed
+                          ? 'border-left-color: rgba(0, 255, 136, 0.7);'
+                          : '';
+                        return `
+                          <div class="gm-quest" style="${border}">
+                            <div class="gm-quest-title">
+                              <span>${quest.title}${completed ? ' ✓' : ''}</span>
+                              <span class="gm-hud-gold">${quest.reward}💰</span>
+                            </div>
+                            <div class="gm-quest-desc">${quest.description}</div>
+                            ${
+                              !completed
+                                ? `<button class="gm-quest-btn" data-quest-id="${quest.id}">Concluir</button>`
+                                : `<div class="gm-small" style="margin-top:8px; color: rgba(0,255,136,0.9); font-weight: 900;">✓ Concluída</div>`
+                            }
+                          </div>
+                        `;
+                      })
+                      .join('')}
+                  </div>
+                </div>
+              </section>
+            </div>
+          </main>
+
+          <!-- Right panels -->
+          <aside class="gm-right">
+            <section class="gm-card">
+              <h2>Resumo</h2>
+              <div class="gm-small">
+                Placeholder rápido pra ficar no clima “HUD + painéis”.<br/>
+                Próximo: transformar isso num relatório do dia (rumores, incidentes, economia).
               </div>
-            `
-              )
-              .join('')}
-          </div>
-        </section>
+            </section>
+
+            <section class="gm-card">
+              <h2>Diário</h2>
+              <div class="gm-scroll gm-small" id="gm-log">
+                <div>• Bem-vindo ao ProjectGM.</div>
+                <div>• (Em breve) logs reais do motor vão aparecer aqui.</div>
+              </div>
+            </section>
+          </aside>
+        </div>
       </div>
     `;
+
+    // (Opcional) depois a gente liga esses botões em ações reais do motor.
   }
 }
