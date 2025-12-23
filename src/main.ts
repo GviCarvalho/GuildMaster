@@ -27,12 +27,17 @@ function initGame() {
     }
   };
 
+  // Define simulation toggle handler
+  const handleToggleSimulation = () => {
+    engine.toggle();
+  };
+
   // Render initial state
-  ui.render(engine.getState(), handleQuestComplete);
+  ui.render(engine.getState(), handleQuestComplete, handleToggleSimulation);
 
   // Subscribe to state changes and re-render
   engine.subscribe((state) => {
-    ui.render(state, handleQuestComplete);
+    ui.render(state, handleQuestComplete, handleToggleSimulation);
   });
 
   // Game loop for time-based updates
