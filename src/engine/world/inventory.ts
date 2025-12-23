@@ -84,7 +84,7 @@ export function inventoryRemove(
  * Set item quantity in entity inventory and update indices
  * @param entity - The NPC entity
  * @param itemId - The item identifier
- * @param quantity - New quantity (must be non-negative)
+ * @param quantity - New quantity (negative values are clamped to 0)
  * @param indices - World indices to update
  */
 export function inventorySet(
@@ -93,6 +93,7 @@ export function inventorySet(
   quantity: number,
   indices: WorldIndices
 ): void {
+  // Clamp negative quantities to 0
   if (quantity < 0) {
     quantity = 0;
   }

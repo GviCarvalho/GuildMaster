@@ -25,7 +25,14 @@ GuildMaster/
 │   ├── engine/          # Game engine and core logic
 │   │   ├── GameEngine.ts
 │   │   ├── types.ts
-│   │   └── index.ts
+│   │   ├── index.ts
+│   │   ├── world/       # World management (Phase 1 & 2)
+│   │   │   ├── map.ts        # Grid-based world map
+│   │   │   ├── indices.ts    # Spatial & inventory indices
+│   │   │   ├── inventory.ts  # Inventory mutation helpers
+│   │   │   └── validation.ts # Debug validation
+│   │   └── systems/     # Game systems
+│   │       └── pathfinding.ts
 │   ├── ui/              # User interface rendering
 │   │   ├── GameUI.ts
 │   │   └── index.ts
@@ -37,6 +44,18 @@ GuildMaster/
 ├── .eslintrc.json       # ESLint configuration
 └── .prettierrc.json     # Prettier configuration
 ```
+
+## Game Architecture
+
+### Phase 2: World Indices
+
+The game uses optimized indices for fast queries:
+
+- **Spatial Index**: Fast neighbor/witness queries using cell-based spatial hashing
+- **Inventory Index**: Quickly find NPCs selling specific items
+- **POI Index**: Track entities at points of interest (taverns, markets, etc.)
+
+All indices are automatically maintained and can be validated in development mode.
 
 ## Getting Started
 
