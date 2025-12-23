@@ -27,6 +27,9 @@ class Random {
   }
 
   choice<T>(array: T[]): T {
+    if (array.length === 0) {
+      throw new Error('Cannot choose from empty array');
+    }
     return array[Math.floor(this.next() * array.length)];
   }
 }
@@ -291,6 +294,8 @@ export class GameEngine {
   }
 
   private actionNPCMovement(): void {
+    if (this.state.npcs.length === 0) return;
+
     const npc = this.random.choice(this.state.npcs);
     const dx = this.random.nextInt(-10, 10);
     const dy = this.random.nextInt(-10, 10);
@@ -318,6 +323,8 @@ export class GameEngine {
   }
 
   private actionNPCWork(): void {
+    if (this.state.npcs.length === 0) return;
+
     const npc = this.random.choice(this.state.npcs);
     const earnings = this.random.nextInt(3, 15);
     npc.money += earnings;
@@ -337,6 +344,8 @@ export class GameEngine {
   }
 
   private actionRandomEncounter(): void {
+    if (this.state.npcs.length === 0) return;
+
     const npc = this.random.choice(this.state.npcs);
     const encounters = [
       `${npc.name} encontrou uma moeda antiga no caminho.`,

@@ -36,17 +36,15 @@ export class GameUI {
 
     // Throttle rendering to avoid DOM churn
     const now = performance.now();
-    if (now - this.lastRenderTime < this.renderThrottleMs && this.pendingRender) {
-      return;
-    }
+    const timeSinceLastRender = now - this.lastRenderTime;
 
-    if (now - this.lastRenderTime < this.renderThrottleMs) {
+    if (timeSinceLastRender < this.renderThrottleMs) {
       if (!this.pendingRender) {
         this.pendingRender = true;
         setTimeout(() => {
           this.pendingRender = false;
           this.render(state, onQuestComplete, onToggleSimulation);
-        }, this.renderThrottleMs - (now - this.lastRenderTime));
+        }, this.renderThrottleMs - timeSinceLastRender);
       }
       return;
     }
