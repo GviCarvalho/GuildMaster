@@ -7,11 +7,19 @@ import { WorldMap, type POI } from './world/map';
 import { findPath, isPathValid } from './systems/pathfinding';
 import { WorldIndices } from './world/indices';
 import { validateIndices, logValidationResults } from './world/validation';
+import { transferGold, calculateTotalGold, validateEconomyInvariants, initializeEconomy } from './systems/economy';
+import { modifyNeed, satisfyNeed } from './systems/needs';
+import { performSocialInteraction } from './systems/social';
+import { inventoryAdd, inventoryRemove, inventoryHas } from './world/inventory';
 
 // Constants for simulation
 const SECONDS_PER_DAY = 1200; // 20 minutes per day
 const ACTION_TICK_INTERVAL = 2000; // 2 seconds in milliseconds
 const MAX_REPORT_LOG_LINES = 500;
+
+// Constants for tempo (time resource) economy
+const MIN_TEMPO_GENERATION = 3;
+const MAX_TEMPO_GENERATION = 8;
 
 // Simple seeded random number generator for deterministic simulation
 class Random {
@@ -45,6 +53,8 @@ export class GameEngine {
   private random: Random;
   // Phase 2: World indices for fast queries
   private indices: WorldIndices;
+  // Phase 3: Track initial economy gold for invariant checks
+  private initialEconomyGold: number = 0;
 
   constructor() {
     this.random = new Random();
@@ -52,6 +62,10 @@ export class GameEngine {
     // Initialize indices after state creation
     this.indices = new WorldIndices(this.state.worldMap.width);
     this.rebuildIndices();
+    // Initialize economy and track initial gold
+    initializeEconomy(this.state, 5000, 10000, this.random);
+    this.initialEconomyGold = calculateTotalGold(this.state);
+    console.log(`[GameEngine] Economy initialized with ${this.initialEconomyGold} total gold`);
   }
 
   private createInitialState(): GameState {
@@ -103,6 +117,9 @@ export class GameEngine {
       reportLog,
       npcs,
       worldMap,
+      cityTreasury: 0, // Will be initialized by initializeEconomy
+      relations: new Map(),
+      guildTreasury: 0,
     };
   }
 
@@ -205,6 +222,11 @@ export class GameEngine {
         money: this.random.nextInt(10, 200),
         job: this.random.choice(jobs),
         traits: npcTraits,
+        needs: {
+          hunger: this.random.nextInt(40, 60),
+          social: this.random.nextInt(40, 60),
+          fun: this.random.nextInt(40, 60),
+        },
       });
     }
 
@@ -362,17 +384,21 @@ export class GameEngine {
       case 0: // NPC movement
         this.actionNPCMovement();
         break;
-      case 1: // NPC trade
+      case 1: // NPC trade/buy
         this.actionNPCTrade();
         break;
       case 2: // NPC work
         this.actionNPCWork();
         break;
-      case 3: // Guild event
-        this.actionGuildEvent();
+      case 3: // NPC eat (satisfy hunger)
+        this.actionNPCEat();
         break;
-      case 4: // Random encounter
-        this.actionRandomEncounter();
+      case 4: // Random encounter (social) or guild event
+        if (this.random.next() < 0.5) {
+          this.actionRandomEncounter();
+        } else {
+          this.actionGuildEvent();
+        }
         break;
       case 5: // Market fluctuation
         this.actionMarketFluctuation();
@@ -463,41 +489,46 @@ export class GameEngine {
   private actionNPCTrade(): void {
     if (this.state.npcs.length < 2) return;
 
-    const npc1 = this.random.choice(this.state.npcs);
-    const npc2 = this.random.choice(
-      this.state.npcs.filter((n) => n.id !== npc1.id)
+    const buyer = this.random.choice(this.state.npcs);
+    const seller = this.random.choice(
+      this.state.npcs.filter((n) => n.id !== buyer.id)
     );
     
-    // Check if at least one NPC is at the Market or Tavern
+    // Check if buyer is at the Market or Tavern
     const marketPOI = this.state.worldMap.getPOI('market');
     const tavernPOI = this.state.worldMap.getPOI('tavern');
     
-    const npc1AtMarketOrTavern = (marketPOI && this.isNPCAtPOI(npc1, marketPOI)) || 
-                                  (tavernPOI && this.isNPCAtPOI(npc1, tavernPOI));
+    const buyerAtMarketOrTavern = (marketPOI && this.isNPCAtPOI(buyer, marketPOI)) || 
+                                   (tavernPOI && this.isNPCAtPOI(buyer, tavernPOI));
     
-    if (!npc1AtMarketOrTavern) {
+    if (!buyerAtMarketOrTavern) {
       // NPC needs to move to market first
-      if (marketPOI && !npc1.targetPos) {
-        npc1.targetPos = { x: marketPOI.pos.x, y: marketPOI.pos.y };
-        const path = findPath(npc1.pos, npc1.targetPos, this.state.worldMap);
+      if (marketPOI && !buyer.targetPos) {
+        buyer.targetPos = { x: marketPOI.pos.x, y: marketPOI.pos.y };
+        const path = findPath(buyer.pos, buyer.targetPos, this.state.worldMap);
         if (path.length > 0) {
-          npc1.currentPath = path;
+          buyer.currentPath = path;
         } else {
-          // No valid path, clear target
-          npc1.targetPos = undefined;
+          buyer.targetPos = undefined;
         }
       }
       return;
     }
     
+    // Phase 3: Use closed economy - transfer gold between NPCs
     const amount = this.random.nextInt(5, 20);
-
-    if (npc1.money >= amount) {
-      npc1.money -= amount;
-      npc2.money += amount;
+    const success = transferGold(this.state, buyer.id, seller.id, amount, 'trade');
+    
+    if (success) {
       this.addReportLog(
-        `${npc1.name} negociou ${amount} moedas com ${npc2.name}.`
+        `${buyer.name} negociou ${amount} moedas com ${seller.name}.`
       );
+      
+      // Improve social relation through trade
+      performSocialInteraction(this.state, buyer.id, seller.id, 'trade');
+      
+      // Satisfy hunger need slightly from trade (acquiring goods)
+      satisfyNeed(buyer, 'hunger', 5);
     }
   }
 
@@ -525,16 +556,117 @@ export class GameEngine {
         if (path.length > 0) {
           npc.currentPath = path;
         } else {
-          // No valid path, clear target
           npc.targetPos = undefined;
         }
       }
       return;
     }
     
-    const earnings = this.random.nextInt(3, 15);
-    npc.money += earnings;
-    this.addReportLog(`${npc.name} trabalhou como ${npc.job} e ganhou ${earnings} moedas.`);
+    // Phase 3: Work produces items by consuming input (tempo or insumo)
+    // No gold generation from work
+    const inputItem = 'tempo';
+    const outputItem = this.getJobOutputItem(npc.job);
+    
+    // Ensure NPC has "tempo" resource - initialize if needed
+    if (!inventoryHas(npc, inputItem, 1)) {
+      inventoryAdd(npc, inputItem, this.random.nextInt(MIN_TEMPO_GENERATION, MAX_TEMPO_GENERATION), this.indices);
+    }
+    
+    // Consume tempo and produce output item
+    const hasInput = inventoryHas(npc, inputItem, 1);
+    if (hasInput) {
+      inventoryRemove(npc, inputItem, 1, this.indices);
+      inventoryAdd(npc, outputItem, 1, this.indices);
+      
+      this.addReportLog(`${npc.name} trabalhou como ${npc.job} e produziu ${outputItem}.`);
+      
+      // Work makes you hungry
+      modifyNeed(npc, 'hunger', -5);
+      
+      // Decay fun need (work is not fun)
+      modifyNeed(npc, 'fun', -2);
+    } else {
+      this.addReportLog(`${npc.name} não pôde trabalhar (sem tempo disponível).`);
+    }
+  }
+  
+  /**
+   * Get output item for a job
+   */
+  private getJobOutputItem(job: string): string {
+    const jobOutputs: Record<string, string> = {
+      'Minerador': 'minério',
+      'Caçador': 'carne',
+      'Pescador': 'peixe',
+      'Agricultor': 'grãos',
+      'Mercador': 'mercadoria',
+      'Ferreiro': 'ferramenta',
+      'Alquimista': 'poção',
+      'Artesão': 'artesanato',
+      'Guarda': 'segurança',
+      'Aventureiro': 'tesouro',
+    };
+    
+    return jobOutputs[job] || 'item';
+  }
+
+  /**
+   * NPC eats food to satisfy hunger
+   */
+  private actionNPCEat(): void {
+    if (this.state.npcs.length === 0) return;
+
+    const npc = this.random.choice(this.state.npcs);
+    
+    // Look for food items in inventory
+    const foodItems = ['carne', 'peixe', 'grãos', 'comida'];
+    let foundFood = false;
+    
+    for (const foodItem of foodItems) {
+      if (inventoryHas(npc, foodItem, 1)) {
+        // Consume food
+        inventoryRemove(npc, foodItem, 1, this.indices);
+        
+        // Satisfy hunger significantly
+        satisfyNeed(npc, 'hunger', 30);
+        
+        this.addReportLog(`${npc.name} comeu ${foodItem}.`);
+        foundFood = true;
+        break;
+      }
+    }
+    
+    // If no food found, try to buy some at the market
+    if (!foundFood) {
+      const marketPOI = this.state.worldMap.getPOI('market');
+      
+      // If at market, buy food from city or another NPC
+      if (marketPOI && this.isNPCAtPOI(npc, marketPOI)) {
+        const foodCost = this.random.nextInt(5, 15);
+        
+        // Try to buy from city treasury (representing shops)
+        const success = transferGold(this.state, npc.id, 'city', foodCost, 'buy food');
+        
+        if (success) {
+          // Add food to inventory
+          inventoryAdd(npc, 'comida', 1, this.indices);
+          this.addReportLog(`${npc.name} comprou comida por ${foodCost} moedas.`);
+          
+          // Consume it immediately
+          inventoryRemove(npc, 'comida', 1, this.indices);
+          satisfyNeed(npc, 'hunger', 25);
+        }
+      } else if (marketPOI && !npc.targetPos) {
+        // Move to market to buy food
+        npc.targetPos = { x: marketPOI.pos.x, y: marketPOI.pos.y };
+        const path = findPath(npc.pos, npc.targetPos, this.state.worldMap);
+        if (path.length > 0) {
+          npc.currentPath = path;
+        } else {
+          npc.targetPos = undefined;
+        }
+      }
+    }
   }
 
   private actionGuildEvent(): void {
@@ -557,13 +689,35 @@ export class GameEngine {
     // Check if NPC is at Tavern for social encounters
     const tavernPOI = this.state.worldMap.getPOI('tavern');
     if (tavernPOI && this.isNPCAtPOI(npc, tavernPOI)) {
-      const encounters = [
-        `${npc.name} participou de uma festa na taverna.`,
-        `${npc.name} ouviu histórias de terras distantes.`,
-        `${npc.name} encontrou velhos amigos na taverna.`,
-      ];
-      const encounter = this.random.choice(encounters);
-      this.addReportLog(encounter);
+      // Social encounter at tavern - find another NPC nearby
+      const nearbyNPCs = this.getEntitiesNearPosition(npc.pos.x, npc.pos.y, 3);
+      const otherNPCs = nearbyNPCs.filter((n) => n.id !== npc.id);
+      
+      if (otherNPCs.length > 0) {
+        const otherNPC = this.random.choice(otherNPCs);
+        performSocialInteraction(this.state, npc.id, otherNPC.id, 'chat');
+        
+        this.addReportLog(
+          `${npc.name} conversou com ${otherNPC.name} na taverna.`
+        );
+        
+        // Satisfy social and fun needs
+        satisfyNeed(npc, 'social', 10);
+        satisfyNeed(npc, 'fun', 8);
+        satisfyNeed(otherNPC, 'social', 10);
+        satisfyNeed(otherNPC, 'fun', 8);
+      } else {
+        const encounters = [
+          `${npc.name} participou de uma festa na taverna.`,
+          `${npc.name} ouviu histórias de terras distantes.`,
+        ];
+        const encounter = this.random.choice(encounters);
+        this.addReportLog(encounter);
+        
+        // Satisfy needs even if alone
+        satisfyNeed(npc, 'social', 5);
+        satisfyNeed(npc, 'fun', 10);
+      }
     } else {
       const encounters = [
         `${npc.name} encontrou uma moeda antiga no caminho.`,
@@ -572,6 +726,9 @@ export class GameEngine {
       ];
       const encounter = this.random.choice(encounters);
       this.addReportLog(encounter);
+      
+      // Small fun increase
+      satisfyNeed(npc, 'fun', 3);
     }
   }
 
@@ -597,7 +754,22 @@ export class GameEngine {
     }
 
     quest.completed = true;
-    this.state.player.gold += quest.reward;
+    
+    // Phase 3: Use transferGold for quest rewards (from guild to player)
+    // If guild doesn't have enough, use city treasury as fallback
+    let success = false;
+    if (this.state.guildTreasury !== undefined && this.state.guildTreasury >= quest.reward) {
+      success = transferGold(this.state, 'guild', 'player', quest.reward, 'quest reward');
+    } else {
+      success = transferGold(this.state, 'city', 'player', quest.reward, 'quest reward');
+    }
+    
+    if (!success) {
+      // Fallback: if transfer failed, just add the gold (emergency case)
+      this.state.player.gold += quest.reward;
+      console.warn('[Economy] Quest reward transfer failed, adding gold directly');
+    }
+    
     this.state.player.experience += quest.reward;
 
     // Level up logic
@@ -644,8 +816,34 @@ export class GameEngine {
       // Execute action tick every 2 seconds
       if (this.state.currentTime - this.lastActionTick >= ACTION_TICK_INTERVAL) {
         this.lastActionTick = this.state.currentTime;
+        
+        // Phase 3: Apply passive needs decay to all NPCs
+        this.applyNeedsDecay();
+        
         this.executeWorldActions();
+        
+        // Phase 3: Validate economy invariants in development mode
+        const validation = validateEconomyInvariants(this.state, this.initialEconomyGold);
+        if (!validation.valid) {
+          console.error('[Economy] Invariant violation detected!', validation);
+        }
       }
+    }
+  }
+  
+  /**
+   * Apply passive needs decay to all NPCs
+   */
+  private applyNeedsDecay(): void {
+    // Small decay rates (per 2-second tick)
+    const hungerDecay = 0.5;
+    const socialDecay = 0.3;
+    const funDecay = 0.4;
+    
+    for (const npc of this.state.npcs) {
+      modifyNeed(npc, 'hunger', -hungerDecay);
+      modifyNeed(npc, 'social', -socialDecay);
+      modifyNeed(npc, 'fun', -funDecay);
     }
   }
 
