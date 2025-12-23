@@ -4,6 +4,20 @@
 
 import type { WorldMap, Vec2 } from './world/map';
 
+// Phase 2: Type aliases for indices
+export type EntityId = string;
+export type ItemId = string;
+export type PoiId = string;
+export type CellId = number;
+
+// Inventory item structure
+export interface InventoryItem {
+  itemId: ItemId;
+  quantity: number;
+}
+
+export type Inventory = Map<ItemId, number>;
+
 export interface Player {
   name: string;
   gold: number;
@@ -29,6 +43,8 @@ export interface NPC {
   // Navigation fields for pathfinding
   targetPos?: Vec2;
   currentPath?: Vec2[];
+  // Phase 2: Inventory for trading
+  inventory?: Inventory;
 }
 
 export interface ReportLogEntry {
