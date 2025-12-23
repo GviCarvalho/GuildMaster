@@ -45,6 +45,12 @@ export interface NPC {
   currentPath?: Vec2[];
   // Phase 2: Inventory for trading
   inventory?: Inventory;
+  // Phase 3: Needs system (0-100, clamped)
+  needs?: {
+    hunger: number;
+    social: number;
+    fun: number;
+  };
 }
 
 export interface ReportLogEntry {
@@ -64,4 +70,10 @@ export interface GameState {
   npcs: NPC[];
   // Phase 1: Grid-based world map
   worldMap: WorldMap;
+  // Phase 3: Closed economy
+  cityTreasury: number;
+  // Phase 3: Relations map (sparse)
+  relations: Map<string, Map<EntityId, number>>; // key: "entityId1:entityId2", value: relation value
+  // Phase 3: Guild treasury (optional)
+  guildTreasury?: number;
 }
