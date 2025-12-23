@@ -5,6 +5,8 @@
 import type { GameState, Player, Quest, NPC, ReportLogEntry } from './types';
 import { WorldMap, type POI } from './world/map';
 import { findPath, isPathValid } from './systems/pathfinding';
+import { WorldIndices } from './world/indices';
+import { validateIndices, logValidationResults } from './world/validation';
 
 // Constants for simulation
 const SECONDS_PER_DAY = 1200; // 20 minutes per day
@@ -41,10 +43,15 @@ export class GameEngine {
   private listeners: Set<(state: GameState) => void> = new Set();
   private lastActionTick: number = 0;
   private random: Random;
+  // Phase 2: World indices for fast queries
+  private indices: WorldIndices;
 
   constructor() {
     this.random = new Random();
     this.state = this.createInitialState();
+    // Initialize indices after state creation
+    this.indices = new WorldIndices(this.state.worldMap.width);
+    this.rebuildIndices();
   }
 
   private createInitialState(): GameState {
@@ -227,6 +234,63 @@ export class GameEngine {
   }
 
   /**
+   * Phase 2: Rebuild all indices from current world state
+   * Can be called after loading saved state or for debugging
+   */
+  private rebuildIndices(): void {
+    this.indices.clear();
+
+    // Rebuild spatial index
+    for (const npc of this.state.npcs) {
+      this.indices.addEntityToCell(npc.id, npc.pos);
+    }
+
+    // Rebuild inventory index
+    for (const npc of this.state.npcs) {
+      if (npc.inventory) {
+        for (const [itemId, quantity] of npc.inventory.entries()) {
+          if (quantity > 0) {
+            this.indices.addSeller(npc.id, itemId);
+          }
+        }
+      }
+    }
+
+    // Debug: Log index info in development
+    const debugInfo = this.indices.getDebugInfo();
+    console.log('[Phase 2] Indices rebuilt:', debugInfo);
+  }
+
+  /**
+   * Phase 2: Validate indices consistency (development only)
+   * Can be called manually for debugging
+   */
+  validateIndices(): void {
+    const result = validateIndices(
+      this.state.npcs,
+      this.indices,
+      this.state.worldMap
+    );
+    logValidationResults(result);
+  }
+
+  /**
+   * Phase 2: Get entities near a position (for witness/neighbor queries)
+   */
+  getEntitiesNearPosition(x: number, y: number, radius: number): NPC[] {
+    const entityIds = this.indices.getEntitiesInRadius({ x, y }, radius);
+    return this.state.npcs.filter((npc) => entityIds.has(npc.id));
+  }
+
+  /**
+   * Phase 2: Get NPCs selling a specific item
+   */
+  getSellersOfItem(itemId: string): NPC[] {
+    const sellerIds = this.indices.getSellersOfItem(itemId);
+    return this.state.npcs.filter((npc) => sellerIds.has(npc.id));
+  }
+
+  /**
    * Start the simulation
    */
   start(): void {
@@ -350,9 +414,15 @@ export class GameEngine {
         return;
       }
 
+      // Phase 2: Update spatial index before moving
+      const oldPos = { x: npc.pos.x, y: npc.pos.y };
+      
       // Move to next position
       npc.pos = { x: nextPos.x, y: nextPos.y };
       npc.currentPath.shift();
+
+      // Phase 2: Update spatial index after moving
+      this.indices.moveEntity(npc.id, oldPos, npc.pos);
 
       // Check if NPC reached their target
       if (npc.currentPath.length === 0 && npc.targetPos) {
