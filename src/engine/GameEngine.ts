@@ -17,6 +17,10 @@ const SECONDS_PER_DAY = 1200; // 20 minutes per day
 const ACTION_TICK_INTERVAL = 2000; // 2 seconds in milliseconds
 const MAX_REPORT_LOG_LINES = 500;
 
+// Constants for tempo (time resource) economy
+const MIN_TEMPO_GENERATION = 3;
+const MAX_TEMPO_GENERATION = 8;
+
 // Simple seeded random number generator for deterministic simulation
 class Random {
   private seed: number;
@@ -374,7 +378,7 @@ export class GameEngine {
    * Execute a single random world action
    */
   private executeRandomAction(): void {
-    const actionType = this.random.nextInt(0, 6);
+    const actionType = this.random.nextInt(0, 5);
 
     switch (actionType) {
       case 0: // NPC movement
@@ -389,13 +393,14 @@ export class GameEngine {
       case 3: // NPC eat (satisfy hunger)
         this.actionNPCEat();
         break;
-      case 4: // Guild event
-        this.actionGuildEvent();
+      case 4: // Random encounter (social) or guild event
+        if (this.random.next() < 0.5) {
+          this.actionRandomEncounter();
+        } else {
+          this.actionGuildEvent();
+        }
         break;
-      case 5: // Random encounter (social)
-        this.actionRandomEncounter();
-        break;
-      case 6: // Market fluctuation
+      case 5: // Market fluctuation
         this.actionMarketFluctuation();
         break;
     }
@@ -564,7 +569,7 @@ export class GameEngine {
     
     // Ensure NPC has "tempo" resource - initialize if needed
     if (!inventoryHas(npc, inputItem, 1)) {
-      inventoryAdd(npc, inputItem, this.random.nextInt(3, 8), this.indices);
+      inventoryAdd(npc, inputItem, this.random.nextInt(MIN_TEMPO_GENERATION, MAX_TEMPO_GENERATION), this.indices);
     }
     
     // Consume tempo and produce output item

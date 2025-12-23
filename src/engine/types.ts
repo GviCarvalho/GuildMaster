@@ -72,8 +72,9 @@ export interface GameState {
   worldMap: WorldMap;
   // Phase 3: Closed economy
   cityTreasury: number;
-  // Phase 3: Relations map (sparse)
-  relations: Map<string, Map<EntityId, number>>; // key: "entityId1:entityId2", value: relation value
+  // Phase 3: Relations map (sparse, nested structure)
+  // Outer map: entityId -> inner map of related entities and relation values
+  relations: Map<string, Map<EntityId, number>>;
   // Phase 3: Guild treasury (optional)
   guildTreasury?: number;
 }
