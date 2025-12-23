@@ -1,6 +1,7 @@
 /**
  * Main entry point for GuildMaster game
  */
+import './ui/styles.css';
 
 import { GameEngine } from './engine';
 import { GameUI } from './ui';
