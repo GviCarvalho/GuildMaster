@@ -2,7 +2,7 @@
  * Core game engine - manages game state and logic
  */
 
-import type { GameState, Player, Quest, NPC, ReportLogEntry } from './types';
+import type { GameState, Player, Quest, NPC, ReportLogEntry, Familia, Casta, Stats } from './types';
 import { WorldMap, type POI } from './world/map';
 import { findPath, isPathValid } from './systems/pathfinding';
 import { WorldIndices } from './world/indices';
@@ -97,8 +97,11 @@ export class GameEngine {
     const worldMap = new WorldMap(64, 64);
     worldMap.generateCity();
 
-    // Initialize 100 NPCs
-    const npcs = this.generateInitialNPCs(100, worldMap);
+    // 1. Gerar Famílias primeiro
+    const familias = this.generateFamilies(20);
+
+    // 2. Initialize NPCs usando as famílias
+    const npcs = this.generateInitialNPCs(100, worldMap, familias);
 
     const reportLog: ReportLogEntry[] = [
       {
@@ -115,6 +118,7 @@ export class GameEngine {
       timeOfDaySec: 0,
       simRunning: false,
       reportLog,
+      familias, // Adiciona famílias ao estado
       npcs,
       worldMap,
       cityTreasury: 0, // Will be initialized by initializeEconomy
@@ -123,70 +127,121 @@ export class GameEngine {
     };
   }
 
-  private generateInitialNPCs(count: number, worldMap: WorldMap): NPC[] {
+  // Gera as famílias com castas distribuídas
+  private generateFamilies(count: number): Familia[] {
+    const sobrenomes = [
+      'Silva', 'Cavalcanti', 'Lins', 'Holanda', 'Barros', 
+      'Melo', 'Albuquerque', 'Santos', 'Oliveira', 'Souza',
+      'Costa', 'Ferreira', 'Rodrigues', 'Nascimento', 'Lima'
+    ];
+    
+    const familias: Familia[] = [];
+    
+    for (let i = 0; i < count; i++) {
+      // Distribuição de peso: menos nobres, mais plebeus
+      const rand = this.random.next();
+      let casta: Casta = 'plebeu';
+      
+      if (rand > 0.90) casta = 'nobre';       // 10% Nobres
+      else if (rand > 0.75) casta = 'comerciante'; // 15% Comerciantes
+      else if (rand > 0.60) casta = 'artesao';     // 15% Artesãos
+      // 60% Plebeus
+
+      familias.push({
+        id: `fam-${i}`,
+        sobrenome: this.random.choice(sobrenomes),
+        casta: casta
+      });
+    }
+    return familias;
+  }
+
+  // Gera Stats baseados na Casta
+  private generateStats(casta: Casta): Stats {
+    // Base aleatória 3-10
+    const roll = () => this.random.nextInt(3, 10);
+    const stats: Stats = {
+      forca: roll(), 
+      vitalidade: roll(), 
+      destreza: roll(),
+      sabedoria: roll(), 
+      inteligencia: roll(), 
+      carisma: roll()
+    };
+
+    // Bônus de Casta
+    switch (casta) {
+      case 'nobre': 
+        stats.carisma += 3; 
+        stats.inteligencia += 2; 
+        break;
+      case 'artesao': 
+        stats.destreza += 3; 
+        stats.sabedoria += 1; 
+        break;
+      case 'plebeu': 
+        stats.forca += 2; 
+        stats.vitalidade += 2; 
+        break;
+      case 'comerciante': 
+        stats.carisma += 2; 
+        stats.sabedoria += 2; 
+        break;
+    }
+    return stats;
+  }
+
+  private generateInitialNPCs(count: number, worldMap: WorldMap, familias: Familia[]): NPC[] {
     const firstNames = [
-      'João',
-      'Maria',
-      'Pedro',
-      'Ana',
-      'Carlos',
-      'Beatriz',
-      'Lucas',
-      'Julia',
-      'Rafael',
-      'Camila',
-      'Fernando',
-      'Isabela',
-      'Gabriel',
-      'Larissa',
-      'Mateus',
-      'Sofia',
-      'Bruno',
-      'Amanda',
-      'Diego',
-      'Letícia',
+      'João', 'Maria', 'Pedro', 'Ana', 'Carlos', 'Beatriz', 
+      'Lucas', 'Julia', 'Rafael', 'Camila', 'Fernando', 'Isabela', 
+      'Gabriel', 'Larissa', 'Mateus', 'Sofia', 'Bruno', 'Amanda', 
+      'Diego', 'Letícia',
     ];
-    const lastNames = [
-      'Silva',
-      'Santos',
-      'Oliveira',
-      'Souza',
-      'Costa',
-      'Ferreira',
-      'Rodrigues',
-      'Almeida',
-      'Nascimento',
-      'Lima',
-    ];
-    const jobs = [
-      'Aventureiro',
-      'Mercador',
-      'Ferreiro',
-      'Alquimista',
-      'Guarda',
-      'Caçador',
-      'Minerador',
-      'Pescador',
-      'Agricultor',
-      'Artesão',
-    ];
+
     const traits = [
-      'Corajoso',
-      'Cauteloso',
-      'Ganancioso',
-      'Generoso',
-      'Habilidoso',
-      'Sortudo',
-      'Trabalhador',
-      'Preguiçoso',
-      'Esperto',
-      'Ingênuo',
+      'Corajoso', 'Cauteloso', 'Ganancioso', 'Generoso', 'Habilidoso', 
+      'Sortudo', 'Trabalhador', 'Preguiçoso', 'Esperto', 'Ingênuo',
     ];
 
     const npcs: NPC[] = [];
+    
     for (let i = 0; i < count; i++) {
       const firstName = this.random.choice(firstNames);
-      const lastName = this.random.choice(lastNames);
+      
+      // a) Escolher família
+      const familia = this.random.choice(familias);
+
+      // b) Gerar Stats e Reputação
+      const stats = this.generateStats(familia.casta);
+      const reputacao = familia.casta === 'nobre' ? 50 : 0;
+      
+      // c) Definir Job baseado na Casta/Stats
+      let job = 'Desempregado';
+      
+      if (familia.casta === 'nobre') {
+        job = this.random.choice(['Aristocrata', 'Político', 'Mecenas']);
+      } else if (familia.casta === 'artesao' || stats.destreza > 7) {
+        job = this.random.choice(['Ferreiro', 'Artesão', 'Alfaiate', 'Construtor']);
+      } else if (familia.casta === 'comerciante' || stats.carisma > 7) {
+        job = 'Mercador';
+      } else {
+        // Plebeus ou outros
+        if (stats.forca > 7) job = this.random.choice(['Guarda', 'Soldado']);
+        else if (stats.sabedoria > 7) job = this.random.choice(['Alquimista', 'Ervanário']);
+        else if (stats.destreza > 7) job = 'Caçador';
+        else job = this.random.choice(['Agricultor', 'Pescador', 'Minerador']);
+      }
+      
+      // Definir dinheiro inicial baseado na casta
+      let initialMoney = 0;
+      switch(familia.casta) {
+        case 'nobre': initialMoney = this.random.nextInt(300, 800); break;
+        case 'comerciante': initialMoney = this.random.nextInt(100, 400); break;
+        case 'artesao': initialMoney = this.random.nextInt(50, 150); break;
+        default: initialMoney = this.random.nextInt(5, 50); break;
+      }
+
       const npcTraits: string[] = [];
       const traitCount = this.random.nextInt(1, 3);
       for (let j = 0; j < traitCount; j++) {
@@ -209,7 +264,6 @@ export class GameEngine {
       }
 
       // Fallback to (0,0) which is guaranteed walkable by map generation
-      // (0,0 is on a main road since 0 % mainRoadInterval === 0)
       if (!worldMap.isWalkable(x, y)) {
         x = 0;
         y = 0;
@@ -217,10 +271,15 @@ export class GameEngine {
 
       npcs.push({
         id: `npc-${i + 1}`,
-        name: `${firstName} ${lastName}`,
+        name: `${firstName} ${familia.sobrenome}`, // Usa sobrenome da família
+        familiaId: familia.id,
+        casta: familia.casta,
+        reputacao: reputacao,
+        stats: stats,
+        talentos: [], // Futuramente implementar sorteio de talentos
         pos: { x, y },
-        money: this.random.nextInt(10, 200),
-        job: this.random.choice(jobs),
+        money: initialMoney,
+        job: job,
         traits: npcTraits,
         needs: {
           hunger: this.random.nextInt(40, 60),
