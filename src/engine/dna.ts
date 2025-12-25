@@ -356,5 +356,13 @@ export const REACTIONS_LIBRARY = {
 
 export type ReactionLibrary = typeof REACTIONS_LIBRARY;
 
+/**
+ * Convenience helper to iterate over every reaction in the library.
+ * Useful for running batch simulations without remembering each subset.
+ */
+export function flattenReactions(library: ReactionLibrary): ReactionRule[] {
+  return [...library.REACTIONS_WORLD, ...library.REACTIONS_BODY, ...library.REACTIONS_SOCIAL];
+}
+
 // Backward compatibility export; kept for tests/demos.
 export const SAMPLE_REACTIONS: ReactionRule[] = [...REACTIONS_BODY];

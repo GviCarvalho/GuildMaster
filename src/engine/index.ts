@@ -24,6 +24,7 @@ export {
   REACTIONS_WORLD,
   REACTIONS_SOCIAL,
   REACTIONS_LIBRARY,
+  flattenReactions,
   SAMPLE_REACTIONS,
   temperatureWindow,
   catalystBoost,
