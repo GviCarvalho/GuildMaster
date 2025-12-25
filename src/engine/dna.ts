@@ -170,17 +170,37 @@ function deriveMacroStates(npc: DnaNpc, dt: number): void {
   const inflam = mixGet(npc.body, 'INFLAM');
   const ser = mixGet(npc.body, 'SER');
   const water = mixGet(npc.body, 'H2O');
-  const stressChems = mixGet(npc.body, 'STRESS') + mixGet(npc.body, 'CORT') + mixGet(npc.body, 'ADREN');
+   const stressChems =
+    mixGet(npc.body, 'STRESS') +
+    mixGet(npc.body, 'CORT') +
+    mixGet(npc.body, 'ADREN');
+
   const socialBond = mixGet(npc.body, 'SOCIAL_BOND');
   const dopa = mixGet(npc.body, 'DOPA');
 
   npc.energy = clamp((npc.energy ?? 0.5) + (0.05 * glu - 0.03 * inflam) * dt, 0, 1);
   npc.pain = clamp((npc.pain ?? 0) + 0.06 * inflam * dt, 0, 1);
-  npc.mood = clamp((npc.mood ?? 0.5) + (0.04 * ser - 0.02 * inflam - 0.02 * stressChems) * dt, 0, 1);
-  npc.focus = clamp((npc.focus ?? 0.5) + (0.04 * dopa - 0.03 * stressChems) * dt, 0, 1);
+
+  npc.mood = clamp(
+    (npc.mood ?? 0.5) + (0.04 * ser - 0.02 * inflam - 0.02 * stressChems) * dt,
+    0,
+    1,
+  );
+
+  npc.focus = clamp(
+    (npc.focus ?? 0.5) + (0.04 * dopa - 0.03 * stressChems) * dt,
+    0,
+    1,
+  );
+
   npc.hunger = clamp((npc.hunger ?? 0.5) + (0.03 - 0.06 * glu) * dt, 0, 1);
   npc.thirst = clamp((npc.thirst ?? 0.5) + (0.03 - 0.08 * water) * dt, 0, 1);
-  npc.social = clamp((npc.social ?? 0.5) + (0.04 * socialBond - 0.02 * stressChems) * dt, 0, 1);
+
+  npc.social = clamp(
+    (npc.social ?? 0.5) + (0.04 * socialBond - 0.02 * stressChems) * dt,
+    0,
+    1,
+  );
 }
 
 export function runReactor(
@@ -206,7 +226,6 @@ export function runReactor(
   return ctx.mix;
 }
 
-/**
  * Macro snapshot (0..1) derived from a body's Mix without mutating it.
  * Lets systems map chemistry -> psychology/needs.
  */
@@ -226,12 +245,13 @@ export function deriveMacroSnapshot(body: Mix): MacroSnapshot {
   const ser = mixGet(body, 'SER');
   const water = mixGet(body, 'H2O');
   const stressChems = mixGet(body, 'STRESS') + mixGet(body, 'CORT') + mixGet(body, 'ADREN');
+  const dopa = mixGet(body, 'DOPA');
 
   return {
     energy: clamp(0.5 + (0.05 * glu - 0.03 * inflam), 0, 1),
     pain: clamp(0.06 * inflam, 0, 1),
     mood: clamp(0.5 + (0.04 * ser - 0.02 * inflam - 0.02 * stressChems), 0, 1),
-    focus: clamp(0.5 + 0.04 * mixGet(body, 'DOPA') - 0.03 * stressChems, 0, 1),
+    focus: clamp(0.5 + (0.04 * dopa - 0.03 * stressChems), 0, 1),
     hungerSignal: clamp(0.5 + (0.03 - 0.06 * glu), 0, 1),
     thirstSignal: clamp(0.5 + (0.03 - 0.08 * water), 0, 1),
     stress: clamp(stressChems, 0, 1),
@@ -290,7 +310,6 @@ export const SUBSTANCES: Substance[] = [
 ];
 
 export const REACTIONS_WORLD: ReactionRule[] = [
-  // Humidade condensa/evapora
   new ReactionRule({
     inputs: { H2O: 0.5 },
     outputs: { HUMIDADE: 0.5 },
@@ -310,12 +329,63 @@ export const REACTIONS_WORLD: ReactionRule[] = [
     rate: 0.15,
     condition: temperatureWindow(0.7, 1),
   }),
-  new ReactionRule({ inputs: { ORE_SN: 1, ORE_CU: 1 }, outputs: { BRONZE: 1 }, rate: 0.1, condition: temperatureWindow(0.5, 0.9) }),
+  new ReactionRule({
+    inputs: { ORE_SN: 1, ORE_CU: 1 },
+    outputs: { BRONZE: 1 },
+    rate: 0.1,
+    condition: temperatureWindow(0.5, 0.9),
+  }),
 ];
 
 export const REACTIONS_BODY: ReactionRule[] = [
   new ReactionRule({ inputs: { GLU: 1, O2: 1 }, outputs: { ATP: 1, CO2: 1 }, rate: 0.2 }),
   new ReactionRule({ inputs: { FRUCT: 1, O2: 1 }, outputs: { ATP: 0.8, CO2: 1 }, rate: 0.18 }),
+  new ReactionRule({ inputs: { ATP: 1 }, outputs: {}, rate: 0.1 }),
+  new ReactionRule({ inputs: { TOX_A: 1 }, outputs: { INFLAM: 1 }, rate: 0.15 }),
+  new ReactionRule({ inputs: { ANT_B: 1, TOX_A: 1 }, outputs: {}, rate: 0.5 }),
+  new ReactionRule({
+    inputs: { D: 1, ENZ_X: 0.1 },
+    outputs: { Y: 1 },
+    rate: 0.25,
+    condition: catalystBoost('ENZ_X', 1.5),
+  }),
+  new ReactionRule({ inputs: { DOCE: 1, AMARGO: 1 }, outputs: { UMAMI: 0.5 }, rate: 0.08 }),
+  new ReactionRule({
+    inputs: { UMAMI: 1 },
+    outputs: { SER: 0.2 },
+    rate: 0.05,
+    condition: temperatureWindow(0.2, 0.8),
+  }),
+  new ReactionRule({ inputs: { STRESS: 1 }, outputs: { CORT: 0.3, ADREN: 0.3 }, rate: 0.12 }),
+  new ReactionRule({ inputs: { CORT: 0.5 }, outputs: {}, rate: 0.05 }),
+  new ReactionRule({ inputs: { ADREN: 0.5 }, outputs: {}, rate: 0.05 }),
+];
+
+export const REACTIONS_SOCIAL: ReactionRule[] = [
+  new ReactionRule({ inputs: { STRESS: 0.5 }, outputs: { AMARGO: 0.1 }, rate: 0.05 }),
+  new ReactionRule({
+    inputs: { SER: 0.2, DOPA: 0.2 },
+    outputs: { SOCIAL_BOND: 0.4 },
+    rate: 0.08,
+    condition: tagThreshold('trust', 0.5),
+  }),
+];
+
+export const REACTIONS_LIBRARY = {
+  SUBSTANCES,
+  REACTIONS_WORLD,
+  REACTIONS_BODY,
+  REACTIONS_SOCIAL,
+};
+
+export type ReactionLibrary = typeof REACTIONS_LIBRARY;
+
+export function flattenReactions(library: ReactionLibrary): ReactionRule[] {
+  return [...library.REACTIONS_WORLD, ...library.REACTIONS_BODY, ...library.REACTIONS_SOCIAL];
+}
+
+// Backward compatibility export; kept for tests/demos.
+export const SAMPLE_REACTIONS: ReactionRule[] = [...REACTIONS_BODY];
   new ReactionRule({ inputs: { ATP: 1 }, outputs: {}, rate: 0.1 }),
   new ReactionRule({ inputs: { TOX_A: 1 }, outputs: { INFLAM: 1 }, rate: 0.15 }),
   new ReactionRule({ inputs: { ANT_B: 1, TOX_A: 1 }, outputs: {}, rate: 0.5 }),
