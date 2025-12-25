@@ -5,7 +5,7 @@
 import type {
   GameState,
   Player,
-  Quest,
+Quest,
   NPC,
   ReportLogEntry,
   Familia,
