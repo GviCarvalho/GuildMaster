@@ -2,15 +2,18 @@
  * Core game engine - manages game state and logic
  */
 
-import type { GameState, Player, Quest, NPC, ReportLogEntry, Familia, Casta, Stats } from './types';
+import type { GameState, Player, Quest, NPC, ReportLogEntry, Familia, Casta, Stats, ItemId } from './types';
 import { WorldMap, type POI } from './world/map';
 import { findPath, isPathValid } from './systems/pathfinding';
 import { WorldIndices } from './world/indices';
 import { validateIndices, logValidationResults } from './world/validation';
 import { transferGold, calculateTotalGold, validateEconomyInvariants, initializeEconomy } from './systems/economy';
-import { modifyNeed, satisfyNeed } from './systems/needs';
+import { modifyNeed, satisfyNeed, syncNeedsFromMacro } from './systems/needs';
 import { performSocialInteraction } from './systems/social';
 import { inventoryAdd, inventoryRemove, inventoryHas } from './world/inventory';
+import { tickNpcChemistry } from './systems/chemistry';
+import { REACTIONS_BODY, type Mix } from './dna';
+import { createSeedItemRegistry, ItemRegistry } from './world/items';
 
 // Constants for simulation
 const SECONDS_PER_DAY = 1200; // 20 minutes per day
@@ -55,9 +58,11 @@ export class GameEngine {
   private indices: WorldIndices;
   // Phase 3: Track initial economy gold for invariant checks
   private initialEconomyGold: number = 0;
+  private itemRegistry: ItemRegistry;
 
   constructor() {
     this.random = new Random();
+    this.itemRegistry = createSeedItemRegistry();
     this.state = this.createInitialState();
     // Initialize indices after state creation
     this.indices = new WorldIndices(this.state.worldMap.width);
@@ -875,10 +880,10 @@ export class GameEngine {
       // Execute action tick every 2 seconds
       if (this.state.currentTime - this.lastActionTick >= ACTION_TICK_INTERVAL) {
         this.lastActionTick = this.state.currentTime;
-        
-        // Phase 3: Apply passive needs decay to all NPCs
-        this.applyNeedsDecay();
-        
+
+        // Chemistry tick informs needs instead of arbitrary decay
+        this.applyChemistryTick(ACTION_TICK_INTERVAL / 1000);
+
         this.executeWorldActions();
         
         // Phase 3: Validate economy invariants in development mode
@@ -891,26 +896,28 @@ export class GameEngine {
   }
   
   /**
-   * Apply passive needs decay to all NPCs
-   */
-  private applyNeedsDecay(): void {
-    // Small decay rates (per 2-second tick)
-    const hungerDecay = 0.5;
-    const socialDecay = 0.3;
-    const funDecay = 0.4;
-    
-    for (const npc of this.state.npcs) {
-      modifyNeed(npc, 'hunger', -hungerDecay);
-      modifyNeed(npc, 'social', -socialDecay);
-      modifyNeed(npc, 'fun', -funDecay);
-    }
-  }
-
-  /**
    * Add gold to player
    */
   addGold(amount: number): void {
     this.state.player.gold += amount;
     this.notify();
+  }
+
+  /**
+   * Drive DNA/metabolism per-NPC and map macro chemistry signals back to needs.
+   */
+  private applyChemistryTick(dtSeconds: number): void {
+    for (const npc of this.state.npcs) {
+      const macro = tickNpcChemistry(npc, REACTIONS_BODY, dtSeconds);
+      syncNeedsFromMacro(npc, macro);
+    }
+  }
+
+  getItemMix(itemId: ItemId): Mix | undefined {
+    return this.itemRegistry.getMix(itemId);
+  }
+
+  spawnItemFromMix(name: string, mix: Mix): ItemId {
+    return this.itemRegistry.spawnFromMix(name, mix);
   }
 }
