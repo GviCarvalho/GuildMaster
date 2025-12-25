@@ -13,7 +13,7 @@ import { performSocialInteraction } from './systems/social';
 import { inventoryAdd, inventoryRemove, inventoryHas } from './world/inventory';
 import { tickNpcChemistry } from './systems/chemistry';
 import { mixMerge, REACTIONS_BODY, REACTIONS_LIBRARY, runReactor, flattenReactions, type Mix } from './dna';
-import { createSeedItemRegistry, ItemRegistry } from './world/items';
+import { createSeedItemRegistry, ItemRegistry, type ItemDefinition } from './world/items';
 
 // Constants for simulation
 const SECONDS_PER_DAY = 1200; // 20 minutes per day
@@ -642,8 +642,10 @@ export class GameEngine {
     if (hasInput) {
       inventoryRemove(npc, inputItem, 1, this.indices);
       inventoryAdd(npc, outputItem, 1, this.indices);
-      
-      this.addReportLog(`${npc.name} trabalhou como ${npc.job} e produziu ${outputItem}.`);
+
+      this.addReportLog(
+        `${npc.name} trabalhou como ${npc.job} e produziu ${this.describeItem(outputItem)}.`,
+      );
       
       // Work makes you hungry
       modifyNeed(npc, 'hunger', -5);
@@ -658,21 +660,30 @@ export class GameEngine {
   /**
    * Get output item for a job
    */
-  private getJobOutputItem(job: string): string {
-    const jobOutputs: Record<string, string> = {
-      'Minerador': 'minério',
-      'Caçador': 'carne',
-      'Pescador': 'peixe',
-      'Agricultor': 'grãos',
-      'Mercador': 'mercadoria',
-      'Ferreiro': 'ferramenta',
-      'Alquimista': 'poção',
-      'Artesão': 'artesanato',
-      'Guarda': 'segurança',
-      'Aventureiro': 'tesouro',
-    };
-    
-    return jobOutputs[job] || 'item';
+  private getJobOutputItem(job: string): ItemId {
+    const catalog = this.itemRegistry.list();
+    const ores = catalog.filter((item) => Object.keys(item.mix).some((k) => k.startsWith('ORE_')));
+    const edibles = catalog.filter((item) => this.isEdible(item));
+
+    switch (job) {
+      case 'Minerador':
+        return this.ensureProceduralItemId('minério', (item) => ores.includes(item));
+      case 'Caçador':
+      case 'Pescador':
+      case 'Agricultor':
+        return this.ensureProceduralItemId('alimento', (item) => edibles.includes(item));
+      case 'Mercador':
+        return this.ensureProceduralItemId('mercadoria');
+      case 'Ferreiro':
+      case 'Alquimista':
+      case 'Artesão':
+        return this.ensureProceduralItemId('produto artesanal');
+      case 'Guarda':
+      case 'Aventureiro':
+        return this.ensureProceduralItemId('saque');
+      default:
+        return this.ensureProceduralItemId('item');
+    }
   }
 
   /**
@@ -682,43 +693,35 @@ export class GameEngine {
     if (this.state.npcs.length === 0) return;
 
     const npc = this.random.choice(this.state.npcs);
-    
-    // Look for food items in inventory
-    const foodItems = ['carne', 'peixe', 'grãos', 'comida'];
-    let foundFood = false;
-    
-    for (const foodItem of foodItems) {
-      if (inventoryHas(npc, foodItem, 1)) {
-        // Consume food
-        inventoryRemove(npc, foodItem, 1, this.indices);
-        
-        // Satisfy hunger significantly
-        satisfyNeed(npc, 'hunger', 30);
-        
-        this.addReportLog(`${npc.name} comeu ${foodItem}.`);
-        foundFood = true;
-        break;
-      }
-    }
-    
-    // If no food found, try to buy some at the market
-    if (!foundFood) {
+
+    const edibleCatalog = this.itemRegistry.list().filter((item) => this.isEdible(item));
+    const ownedFood = edibleCatalog.find((item) => inventoryHas(npc, item.id, 1));
+
+    if (ownedFood) {
+      inventoryRemove(npc, ownedFood.id, 1, this.indices);
+      satisfyNeed(npc, 'hunger', 30);
+      this.addReportLog(`${npc.name} comeu ${this.describeItem(ownedFood.id)}.`);
+    } else {
       const marketPOI = this.state.worldMap.getPOI('market');
-      
+
       // If at market, buy food from city or another NPC
       if (marketPOI && this.isNPCAtPOI(npc, marketPOI)) {
         const foodCost = this.random.nextInt(5, 15);
-        
+
         // Try to buy from city treasury (representing shops)
         const success = transferGold(this.state, npc.id, 'city', foodCost, 'buy food');
-        
+
         if (success) {
-          // Add food to inventory
-          inventoryAdd(npc, 'comida', 1, this.indices);
-          this.addReportLog(`${npc.name} comprou comida por ${foodCost} moedas.`);
-          
+          const purchasedFood = this.ensureProceduralItemId('alimento', (item) =>
+            edibleCatalog.includes(item),
+          );
+          inventoryAdd(npc, purchasedFood, 1, this.indices);
+          this.addReportLog(
+            `${npc.name} comprou ${this.describeItem(purchasedFood)} por ${foodCost} moedas.`,
+          );
+
           // Consume it immediately
-          inventoryRemove(npc, 'comida', 1, this.indices);
+          inventoryRemove(npc, purchasedFood, 1, this.indices);
           satisfyNeed(npc, 'hunger', 25);
         }
       } else if (marketPOI && !npc.targetPos) {
@@ -917,25 +920,17 @@ export class GameEngine {
     }
   }
 
-  /**
-   * Periodically generate a new procedurally-reacted item and place it into the world.
-   */
-  private maybeSynthesizeProceduralItem(dtMs: number): void {
-    this.timeSinceLastItemSynthesis += dtMs;
-
-    // Run synthesis roughly every 10 seconds of simulation time
-    if (this.timeSinceLastItemSynthesis < 10000 || this.state.npcs.length === 0) {
-      return;
-    }
-
-    this.timeSinceLastItemSynthesis = 0;
-
+  private pickCatalogItem(predicate?: (item: ItemDefinition) => boolean): ItemDefinition | undefined {
     const catalog = this.itemRegistry.list();
-    if (catalog.length === 0) return;
+    const pool = predicate ? catalog.filter(predicate) : catalog;
+    if (pool.length === 0) return undefined;
+    return this.random.choice(pool);
+  }
 
-    const seed = this.random.choice(catalog);
+  private synthesizeProceduralItem(labelPrefix: string): ItemId | null {
+    const seed = this.pickCatalogItem();
+    if (!seed) return null;
 
-    // Enrich the seed mix with ambient factors so reactor rules can fire
     const ambient: Mix = {
       O2: 0.5 + 0.5 * this.random.next(),
       H2O: 0.2 + 0.4 * this.random.next(),
@@ -953,12 +948,58 @@ export class GameEngine {
       flattenReactions(REACTIONS_LIBRARY),
     );
 
-    const label = `${seed.name} experimental`;
-    const newItemId = this.itemRegistry.spawnFromMix(label, reactedMix);
+    const label = `${labelPrefix} ${seed.name} experimental`.trim();
+    return this.itemRegistry.spawnFromMix(label, reactedMix);
+  }
+
+  private ensureProceduralItemId(
+    labelPrefix: string,
+    predicate?: (item: ItemDefinition) => boolean,
+  ): ItemId {
+    const candidate = this.pickCatalogItem(predicate);
+    if (candidate) return candidate.id;
+
+    const synthesized = this.synthesizeProceduralItem(labelPrefix);
+    if (synthesized) return synthesized;
+
+    const fallbackMix: Mix = {
+      GLU: 0.1 + 0.4 * this.random.next(),
+      FRUCT: 0.05 * this.random.next(),
+      H2O: 0.2 + 0.6 * this.random.next(),
+    };
+    return this.itemRegistry.spawnFromMix(`${labelPrefix} fallback`, fallbackMix);
+  }
+
+  private isEdible(item: ItemDefinition): boolean {
+    return Object.keys(item.mix).some((k) =>
+      ['GLU', 'FRUCT', 'UMAMI', 'H2O'].some((edible) => k === edible),
+    );
+  }
+
+  private describeItem(itemId: ItemId): string {
+    return this.itemRegistry.getItem(itemId)?.name ?? itemId;
+  }
+
+  /**
+   * Periodically generate a new procedurally-reacted item and place it into the world.
+   */
+  private maybeSynthesizeProceduralItem(dtMs: number): void {
+    this.timeSinceLastItemSynthesis += dtMs;
+
+    // Run synthesis roughly every 10 seconds of simulation time
+    if (this.timeSinceLastItemSynthesis < 10000 || this.state.npcs.length === 0) {
+      return;
+    }
+
+    this.timeSinceLastItemSynthesis = 0;
+    const newItemId = this.synthesizeProceduralItem('item');
+    if (!newItemId) return;
     const carrier = this.random.choice(this.state.npcs);
     inventoryAdd(carrier, newItemId, 1, this.indices);
 
-    this.addReportLog(`${carrier.name} adquiriu um novo item procedimental: ${label}.`);
+    this.addReportLog(
+      `${carrier.name} adquiriu um novo item procedimental: ${this.describeItem(newItemId)}.`,
+    );
   }
 
   getItemMix(itemId: ItemId): Mix | undefined {
