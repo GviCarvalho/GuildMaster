@@ -215,10 +215,6 @@ export function runReactor(
 
   return ctx.mix;
 }
-
- * Macro snapshot (0..1) derived from a body's Mix without mutating it.
- * Lets systems map chemistry -> psychology/needs.
- */
 export interface MacroSnapshot {
   energy: number;
   pain: number;
@@ -370,7 +366,6 @@ export function flattenReactions(library: ReactionLibrary): ReactionRule[] {
   return [...library.REACTIONS_WORLD, ...library.REACTIONS_BODY, ...library.REACTIONS_SOCIAL];
 }
 
-// Backward compatibility export; kept for tests/demos.
 export const SAMPLE_REACTIONS: ReactionRule[] = [...REACTIONS_BODY];
   new ReactionRule({ inputs: { ATP: 1 }, outputs: {}, rate: 0.1 }),
   new ReactionRule({ inputs: { TOX_A: 1 }, outputs: { INFLAM: 1 }, rate: 0.15 }),
