@@ -19,7 +19,7 @@ export class GameUI {
       if (target instanceof HTMLButtonElement) {
         if (target.dataset.questId) {
           this.questCompleteHandler?.(target.dataset.questId);
-        } else if (target.dataset.action === 'passar-dia') {
+        } else if (target.dataset.action === 'toggle-simulation') {
           this.engineToggle?.();
         }
       }
@@ -56,80 +56,80 @@ export class GameUI {
     const minutes = Math.floor((state.timeOfDaySec % 3600) / 60);
     const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
-    // Button state for passar-dia
+    // Button state for simulation toggle
     const btnClass = state.simRunning
       ? 'gm-action-btn gm-action-btn-active'
       : 'gm-action-btn';
-    const btnTitle = state.simRunning ? 'Pausar simulação' : 'Iniciar simulação';
+    const btnTitle = state.simRunning ? 'Pause simulation' : 'Start simulation';
 
     this.rootElement.innerHTML = `
       <div class="gm-stage">
         <div class="gm-layout">
           <!-- Left action bar -->
-          <aside class="gm-actions" aria-label="Ações">
-            <button class="${btnClass}" data-action="passar-dia" title="${btnTitle}">🌞</button>
-            <button class="gm-action-btn" data-action="missoes" title="Missões">⚔️</button>
-            <button class="gm-action-btn" data-action="taverna" title="Taverna">🍺</button>
-            <button class="gm-action-btn" data-action="mercado" title="Mercado">🧺</button>
-            <button class="gm-action-btn" data-action="config" title="Configurações">⚙️</button>
+          <aside class="gm-actions" aria-label="Actions">
+            <button class="${btnClass}" data-action="toggle-simulation" title="${btnTitle}">🌞</button>
+            <button class="gm-action-btn" data-action="quests" title="Quests">⚔️</button>
+            <button class="gm-action-btn" data-action="tavern" title="Tavern">🍺</button>
+            <button class="gm-action-btn" data-action="market" title="Market">🧺</button>
+            <button class="gm-action-btn" data-action="settings" title="Settings">⚙️</button>
           </aside>
 
           <!-- Center room -->
           <main class="gm-room">
             <div class="gm-hud">
               <div class="gm-hud-card">
-                <div class="gm-hud-title">Dia</div>
+                <div class="gm-hud-title">Day</div>
                 <div class="gm-hud-value">${state.day}</div>
               </div>
 
               <div class="gm-hud-card">
-                <div class="gm-hud-title">Hora</div>
+                <div class="gm-hud-title">Time</div>
                 <div class="gm-hud-value">${timeStr}</div>
               </div>
 
               <div class="gm-hud-card">
-                <div class="gm-hud-title">Ouro</div>
+                <div class="gm-hud-title">Gold</div>
                 <div class="gm-hud-value gm-hud-gold">${state.player.gold} pix</div>
               </div>
 
               <div class="gm-hud-card">
-                <div class="gm-hud-title">Mestre</div>
+                <div class="gm-hud-title">Guildmaster</div>
                 <div class="gm-hud-value">${state.player.name}</div>
               </div>
             </div>
 
             <div class="gm-room-content">
               <section class="gm-card">
-                <h2>Interior da Guilda</h2>
+                <h2>Guild Hall Interior</h2>
                 <div class="gm-small">
-                  A "sala" aqui é só um painel por enquanto — mais tarde dá pra colocar NPCs andando (canvas) por trás.
+                  The "room" here is just a panel for now — later NPCs can walk behind it on a canvas layer.
                 </div>
                 <div style="height: 10px"></div>
                 <div class="gm-list">
                   <div class="gm-quest">
                     <div class="gm-quest-title">
                       <span>📌 Status</span>
-                      <span>Nível ${state.player.level}</span>
+                      <span>Level ${state.player.level}</span>
                     </div>
                     <div class="gm-quest-desc">
-                      Experiência: ${state.player.experience} XP | NPCs: ${state.npcs.length} | ${state.simRunning ? '▶️ Simulando' : '⏸️ Pausado'}
+                      Experience: ${state.player.experience} XP | NPCs: ${state.npcs.length} | ${state.simRunning ? '▶️ Running' : '⏸️ Paused'}
                     </div>
                   </div>
 
                   <div class="gm-quest">
                     <div class="gm-quest-title">
-                      <span>🏰 Objetivo</span>
-                      <span style="color: rgba(255,255,255,0.75)">Reerguer a Guilda</span>
+                      <span>🏰 Goal</span>
+                      <span style="color: rgba(255,255,255,0.75)">Rebuild the Guild</span>
                     </div>
                     <div class="gm-quest-desc">
-                      Patrocine aventureiros, organize missões e controle o fluxo de ouro.
+                      Sponsor adventurers, organize quests, and control the flow of gold.
                     </div>
                   </div>
                 </div>
               </section>
 
               <section class="gm-card">
-                <h2>Quadro de Missões</h2>
+                <h2>Quest Board</h2>
                 <div class="gm-scroll" style="max-height: 100%;">
                   <div class="gm-list">
                     ${state.quests
@@ -149,8 +149,8 @@ export class GameUI {
                             <div class="gm-quest-desc">${quest.description}</div>
                             ${
                               !completed
-                                ? `<button class="gm-quest-btn" data-quest-id="${quest.id}">Concluir</button>`
-                                : `<div class="gm-small" style="margin-top:8px; color: rgba(0,255,136,0.9); font-weight: 900;">✓ Concluída</div>`
+                                ? `<button class="gm-quest-btn" data-quest-id="${quest.id}">Complete</button>`
+                                : `<div class="gm-small" style="margin-top:8px; color: rgba(0,255,136,0.9); font-weight: 900;">✓ Completed</div>`
                             }
                           </div>
                         `;
@@ -165,15 +165,15 @@ export class GameUI {
           <!-- Right panels -->
           <aside class="gm-right">
             <section class="gm-card">
-              <h2>Resumo</h2>
+              <h2>Summary</h2>
               <div class="gm-small">
-                Dia ${state.day}, ${timeStr}. A guilda conta com ${state.npcs.length} NPCs trabalhando e vivendo na cidade.
-                ${state.simRunning ? 'A simulação está rodando.' : 'Clique no botão ☀️ para iniciar a simulação.'}
+                Day ${state.day}, ${timeStr}. The guild has ${state.npcs.length} NPCs working and living in the city.
+                ${state.simRunning ? 'The simulation is running.' : 'Click the ☀️ button to start the simulation.'}
               </div>
             </section>
 
             <section class="gm-card">
-              <h2>Diário</h2>
+              <h2>Journal</h2>
               <div class="gm-scroll gm-small" id="gm-log">
                 ${state.reportLog
                   .slice()
