@@ -39,7 +39,6 @@ export {
   type Mix,
   type Substance,
   type ReactionLibrary,
-} from './dna';
-export { ensureChemistry, tickNpcChemistry, type ChemistryState } from './systems/chemistry';
-export { ItemRegistry, createSeedItemRegistry } from './world/items';
-} from './dna';
+  } from './dna';
+  export { ensureChemistry, tickNpcChemistry, type ChemistryState } from './systems/chemistry';
+  export { ItemRegistry, createSeedItemRegistry } from './world/items';
