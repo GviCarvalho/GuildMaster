@@ -25,8 +25,6 @@ export {
   REACTIONS_SOCIAL,
   REACTIONS_LIBRARY,
   flattenReactions,
-  ReactionRule,
-  runReactor,
   SAMPLE_REACTIONS,
   temperatureWindow,
   catalystBoost,
@@ -39,6 +37,6 @@ export {
   type Mix,
   type Substance,
   type ReactionLibrary,
-  } from './dna';
+} from './dna';
   export { ensureChemistry, tickNpcChemistry, type ChemistryState } from './systems/chemistry';
   export { ItemRegistry, createSeedItemRegistry } from './world/items';
