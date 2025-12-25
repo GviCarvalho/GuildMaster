@@ -2,7 +2,19 @@
  * Core game engine - manages game state and logic
  */
 
-import type { GameState, Player, Quest, NPC, ReportLogEntry, Familia, Casta, Stats, ItemId } from './types';
+import type {
+  GameState,
+  Player,
+  Quest,
+  NPC,
+  ReportLogEntry,
+  Familia,
+  Casta,
+  Stats,
+  ItemId,
+  CraftIntent,
+  CraftProcess,
+} from './types';
 import { WorldMap, type POI } from './world/map';
 import { findPath, isPathValid } from './systems/pathfinding';
 import { WorldIndices } from './world/indices';
@@ -14,15 +26,15 @@ import { inventoryAdd, inventoryRemove, inventoryHas } from './world/inventory';
 import { tickNpcChemistry } from './systems/chemistry';
 import { mixMerge, REACTIONS_BODY, REACTIONS_LIBRARY, runReactor, flattenReactions, type Mix } from './dna';
 import { createSeedItemRegistry, ItemRegistry, type ItemDefinition } from './world/items';
+import { mixSignature } from './world/itemAnalyzer';
+import { craftOnce } from './systems/crafting';
+import { simulateIngestion } from './systems/chemistryEvaluation';
+import { stockAdd, stockHas, stockPickByTag, stockRemove, type Stockpile } from './world/stockpile';
 
 // Constants for simulation
 const SECONDS_PER_DAY = 1200; // 20 minutes per day
 const ACTION_TICK_INTERVAL = 2000; // 2 seconds in milliseconds
 const MAX_REPORT_LOG_LINES = 500;
-
-// Constants for tempo (time resource) economy
-const MIN_TEMPO_GENERATION = 3;
-const MAX_TEMPO_GENERATION = 8;
 
 // Simple seeded random number generator for deterministic simulation
 class Random {
@@ -60,11 +72,14 @@ export class GameEngine {
   private initialEconomyGold: number = 0;
   private itemRegistry: ItemRegistry;
   private timeSinceLastItemSynthesis = 0;
+  private stockpile: Stockpile;
 
   constructor() {
     this.random = new Random();
     this.itemRegistry = createSeedItemRegistry();
+    this.stockpile = {};
     this.state = this.createInitialState();
+    this.initializeStockpile();
     // Initialize indices after state creation
     this.indices = new WorldIndices(this.state.worldMap.width);
     this.rebuildIndices();
@@ -131,6 +146,36 @@ export class GameEngine {
       relations: new Map(),
       guildTreasury: 0,
     };
+  }
+
+  private initializeStockpile(): void {
+    const catalog = this.itemRegistry.list();
+    const stockpile: Stockpile = {};
+
+    const seedQuantities: Record<string, number> = {
+      wood: 30,
+      stone: 30,
+      ore: 22,
+      fuel: 18,
+      drink: 40,
+      food: 34,
+      organic: 12,
+      balancing: 8,
+      metal: 12,
+    };
+
+    for (const item of catalog) {
+      if (!item.tags) continue;
+      for (const tag of item.tags) {
+        const qty = seedQuantities[tag];
+        if (qty) {
+          stockAdd(stockpile, item.id, qty);
+        }
+      }
+    }
+
+    // TODO: expand to regional depots/biomes and NPC logistics when maps diversify.
+    this.stockpile = stockpile;
   }
 
   // Gera as famílias com castas distribuídas
@@ -597,11 +642,259 @@ export class GameEngine {
     }
   }
 
+  private getCraftProfileForJob(job: string):
+    | { intent: CraftIntent; process: CraftProcess; requiredTags: string[][]; optionalTags?: string[][] }
+    | null {
+    switch (job) {
+      case 'Ferreiro':
+        return {
+          intent: this.random.next() > 0.6 ? 'weapon' : 'tool',
+          process: 'forge',
+          requiredTags: [['ore', 'metal'], ['wood', 'organic'], ['fuel']],
+        };
+      case 'Artesão':
+      case 'Alfaiate':
+      case 'Construtor':
+        return {
+          intent: this.random.next() > 0.5 ? 'tool' : 'material',
+          process: this.random.next() > 0.4 ? 'refine' : 'cook',
+          requiredTags: [['wood', 'organic'], ['stone']],
+          optionalTags: [['fuel']],
+        };
+      case 'Agricultor':
+        return {
+          intent: 'food',
+          process: 'cook',
+          requiredTags: [['food']],
+          optionalTags: [['drink']],
+        };
+      case 'Alquimista':
+      case 'Ervanário':
+        return {
+          intent: this.random.next() > 0.5 ? 'medicine' : 'drink',
+          process: 'brew',
+          requiredTags: [['organic'], ['balancing', 'stone']],
+          optionalTags: [['ore', 'metal'], ['drink']],
+        };
+      case 'Minerador':
+        return {
+          intent: 'material',
+          process: 'refine',
+          requiredTags: [['ore', 'stone'], ['fuel']],
+          optionalTags: [['wood', 'organic']],
+        };
+      default:
+        return null;
+    }
+  }
+
+  private countSelection(selections: { definition: ItemDefinition; source: 'inventory' | 'stockpile' }[], itemId: ItemId, source: 'inventory' | 'stockpile'): number {
+    return selections.filter((s) => s.definition.id === itemId && s.source === source).length;
+  }
+
+  private pickIngredient(
+    npc: NPC,
+    tagOptions: string[],
+    selections: { definition: ItemDefinition; source: 'inventory' | 'stockpile' }[],
+    allowReuse = false,
+  ): { definition: ItemDefinition; source: 'inventory' | 'stockpile' } | null {
+    const catalog = this.itemRegistry.list();
+    const usedIds = allowReuse ? [] : selections.map((s) => s.definition.id);
+    const matches = catalog.filter(
+      (item) => item.tags?.some((tag) => tagOptions.includes(tag)) && !usedIds.includes(item.id),
+    );
+
+    const invPool = matches.filter((item) =>
+      inventoryHas(npc, item.id, 1 + this.countSelection(selections, item.id, 'inventory')),
+    );
+    if (invPool.length > 0) {
+      return { definition: this.random.choice(invPool), source: 'inventory' };
+    }
+
+    const stockPool = matches.filter((item) =>
+      stockHas(this.stockpile, item.id, 1 + this.countSelection(selections, item.id, 'stockpile')),
+    );
+    if (stockPool.length > 0) {
+      return { definition: this.random.choice(stockPool), source: 'stockpile' };
+    }
+
+    return null;
+  }
+
+  private acquireInputs(
+    npc: NPC,
+    requiredTags: string[][],
+    optionalTags: string[][] = [],
+  ): { definition: ItemDefinition; source: 'inventory' | 'stockpile' }[] | null {
+    const selections: { definition: ItemDefinition; source: 'inventory' | 'stockpile' }[] = [];
+
+    for (const tagOptions of requiredTags) {
+      const choice = this.pickIngredient(npc, tagOptions, selections);
+      if (!choice) {
+        return null;
+      }
+      selections.push(choice);
+    }
+
+    for (const tagOptions of optionalTags) {
+      if (selections.length >= 3) break;
+      const choice = this.pickIngredient(npc, tagOptions, selections);
+      if (choice) selections.push(choice);
+    }
+
+    if (selections.length < 2) {
+      for (const tagOptions of requiredTags) {
+        const duplicate = this.pickIngredient(npc, tagOptions, selections, true);
+        if (duplicate) {
+          selections.push(duplicate);
+          break;
+        }
+      }
+    }
+
+    return selections.length >= 2 ? selections : null;
+  }
+
+  private collectFromStockpile(npc: NPC, tags: string[][]): void {
+    const flattened = tags.flat();
+    const tag = this.random.choice(flattened);
+    const picked = stockPickByTag(this.stockpile, this.itemRegistry, tag, this.random);
+    if (!picked) return;
+
+    stockRemove(this.stockpile, picked.id, 1);
+    inventoryAdd(npc, picked.id, 1, this.indices);
+    this.addReportLog(`${npc.name} coletou ${picked.displayName ?? picked.name} do depósito.`);
+  }
+
+  private matchItemBySignature(
+    npc: NPC,
+    signature: string,
+    selections: { definition: ItemDefinition; source: 'inventory' | 'stockpile' }[],
+  ): { definition: ItemDefinition; source: 'inventory' | 'stockpile' } | null {
+    const candidates = this.itemRegistry
+      .list()
+      .filter((item) => item.signature === signature || mixSignature(item.mix) === signature);
+
+    const inv = candidates.filter((item) =>
+      inventoryHas(npc, item.id, 1 + this.countSelection(selections, item.id, 'inventory')),
+    );
+    if (inv.length > 0) {
+      return { definition: this.random.choice(inv), source: 'inventory' };
+    }
+
+    const stock = candidates.filter((item) =>
+      stockHas(this.stockpile, item.id, 1 + this.countSelection(selections, item.id, 'stockpile')),
+    );
+    if (stock.length > 0) {
+      return { definition: this.random.choice(stock), source: 'stockpile' };
+    }
+
+    return null;
+  }
+
+  private pickLearnedRecipe(
+    npc: NPC,
+    intent: CraftIntent,
+    process: CraftProcess,
+  ): { inputs: { definition: ItemDefinition; source: 'inventory' | 'stockpile' }[]; weights?: number[] } | null {
+    const recipes = (npc.learnedRecipes ?? [])
+      .filter((r) => r.intent === intent && r.process === process)
+      .sort((a, b) => b.score - a.score);
+
+    for (const recipe of recipes) {
+      const selections: { definition: ItemDefinition; source: 'inventory' | 'stockpile' }[] = [];
+      let valid = true;
+      for (const signature of recipe.inputSignatures) {
+        const choice = this.matchItemBySignature(npc, signature, selections);
+        if (!choice) {
+          valid = false;
+          break;
+        }
+        selections.push(choice);
+      }
+
+      if (valid && selections.length >= 2) {
+        return { inputs: selections, weights: recipe.weights };
+      }
+    }
+
+    return null;
+  }
+
+  private rememberRecipe(
+    npc: NPC,
+    intent: CraftIntent,
+    process: CraftProcess,
+    inputs: ItemDefinition[],
+    weights: number[] | undefined,
+    score: number,
+  ): void {
+    const inputSignatures = inputs.map((input) => input.signature ?? mixSignature(input.mix));
+    npc.learnedRecipes ??= [];
+    // TODO: allow recipe exchange between NPCs and job specializations to bias selections.
+
+    const existing = npc.learnedRecipes.find(
+      (r) =>
+        r.intent === intent &&
+        r.process === process &&
+        r.inputSignatures.length === inputSignatures.length &&
+        r.inputSignatures.every((sig, idx) => sig === inputSignatures[idx]),
+    );
+
+    if (existing) {
+      if (score > existing.score) {
+        existing.score = score;
+        existing.weights = weights ?? existing.weights;
+      }
+      return;
+    }
+
+    npc.learnedRecipes.push({ intent, process, inputSignatures, weights, score });
+  }
+
+  private chooseWeights(count: number, requiredCount: number): number[] {
+    const weights: number[] = [];
+    for (let i = 0; i < count; i++) {
+      const emphasis = i < requiredCount ? 0.5 + 0.4 * this.random.next() : 0.1 + 0.4 * this.random.next();
+      weights.push(Number(emphasis.toFixed(3)));
+    }
+    return weights;
+  }
+
+  private scoreResult(intent: CraftIntent, npcBodyMix: Mix, craftedItem: ItemDefinition): number {
+    if (intent === 'food' || intent === 'drink' || intent === 'medicine') {
+      const sim = simulateIngestion(npcBodyMix, craftedItem.mix, flattenReactions(REACTIONS_LIBRARY), 20, 1);
+      const energyGain = sim.after.energy - sim.before.energy;
+      const hungerRelief = sim.before.hungerSignal - sim.after.hungerSignal;
+      const thirstRelief = sim.before.thirstSignal - sim.after.thirstSignal;
+      const essentialPenalty =
+        Math.max(0, -sim.essentialDelta.ATP) +
+        Math.max(0, -sim.essentialDelta.H2O) +
+        Math.max(0, Math.abs(sim.essentialDelta.PH) - 0.05) +
+        Math.max(0, sim.essentialDelta.O2 < -0.05 ? -sim.essentialDelta.O2 : 0);
+      return energyGain * 2 + hungerRelief + thirstRelief - essentialPenalty;
+    }
+
+    const traits = craftedItem.traits ?? {};
+    const slagPenalty = (craftedItem.mix.SLAG ?? 0) + (craftedItem.mix.MINERAL_DUST ?? 0);
+    const stability = 1 - (traits.reactivity ?? 0);
+    const metalness = traits.metalness ?? 0;
+    const mineralness = traits.mineralness ?? 0;
+
+    if (intent === 'weapon' || intent === 'tool') {
+      return 1.2 * metalness + 0.8 * stability - 0.5 * slagPenalty;
+    }
+
+    return mineralness + 0.5 * stability - 0.4 * slagPenalty;
+  }
+
   private actionNPCWork(): void {
     if (this.state.npcs.length === 0) return;
 
     const npc = this.random.choice(this.state.npcs);
-    
+    const profile = this.getCraftProfileForJob(npc.job);
+    if (!profile) return;
+
     // Determine work location based on job
     let requiredPOI: POI | undefined;
     if (npc.job === 'Minerador') {
@@ -611,7 +904,7 @@ export class GameEngine {
     } else if (npc.job === 'Mercador') {
       requiredPOI = this.state.worldMap.getPOI('market');
     }
-    
+
     // Check if NPC is at required location (if any)
     if (requiredPOI && !this.isNPCAtPOI(npc, requiredPOI)) {
       // NPC needs to move to work location first
@@ -626,64 +919,70 @@ export class GameEngine {
       }
       return;
     }
-    
-    // Phase 3: Work produces items by consuming input (tempo or insumo)
-    // No gold generation from work
-    const inputItem = 'tempo';
-    const outputItem = this.getJobOutputItem(npc.job);
-    
-    // Ensure NPC has "tempo" resource - initialize if needed
-    if (!inventoryHas(npc, inputItem, 1)) {
-      inventoryAdd(npc, inputItem, this.random.nextInt(MIN_TEMPO_GENERATION, MAX_TEMPO_GENERATION), this.indices);
+
+    const learned = this.pickLearnedRecipe(npc, profile.intent, profile.process);
+    let selections = learned?.inputs ?? null;
+    let weights = learned?.weights;
+
+    if (!selections) {
+      selections = this.acquireInputs(npc, profile.requiredTags, profile.optionalTags ?? []);
+      if (selections) {
+        weights = this.chooseWeights(selections.length, profile.requiredTags.length);
+      }
     }
-    
-    // Consume tempo and produce output item
-    const hasInput = inventoryHas(npc, inputItem, 1);
-    if (hasInput) {
-      inventoryRemove(npc, inputItem, 1, this.indices);
-      inventoryAdd(npc, outputItem, 1, this.indices);
+
+    if (!selections) {
+      this.collectFromStockpile(npc, profile.requiredTags);
+      return;
+    }
+
+    const inputs = selections.map((s) => s.definition);
+    if (inputs.length < 2) {
+      this.collectFromStockpile(npc, profile.requiredTags);
+      return;
+    }
+
+    for (const selection of selections) {
+      if (selection.source === 'inventory') {
+        inventoryRemove(npc, selection.definition.id, 1, this.indices);
+      } else {
+        stockRemove(this.stockpile, selection.definition.id, 1);
+      }
+    }
+
+    const craftedId = craftOnce(
+      this.random,
+      this.itemRegistry,
+      flattenReactions(REACTIONS_LIBRARY),
+      inputs,
+      profile.process,
+      profile.process === 'forge'
+        ? 'Forge product'
+        : profile.process === 'refine'
+          ? 'Refined material'
+          : `${profile.intent} ${profile.process}`,
+      weights,
+    );
+
+    inventoryAdd(npc, craftedId, 1, this.indices);
+    const craftedDef = this.itemRegistry.getItem(craftedId);
+
+    if (craftedDef) {
+      const score = this.scoreResult(profile.intent, npc.chemistry?.body ?? {}, craftedDef);
+      if (score > 0.2) {
+        this.rememberRecipe(npc, profile.intent, profile.process, inputs, weights, score);
+      }
 
       this.addReportLog(
-        `${npc.name} trabalhou como ${npc.job} e produziu ${this.describeItem(outputItem)}.`,
+        `${npc.name} trabalhou como ${npc.job} e produziu ${craftedDef.displayName ?? craftedDef.name}.`,
       );
-      
-      // Work makes you hungry
-      modifyNeed(npc, 'hunger', -5);
-      
-      // Decay fun need (work is not fun)
-      modifyNeed(npc, 'fun', -2);
-    } else {
-      this.addReportLog(`${npc.name} não pôde trabalhar (sem tempo disponível).`);
     }
-  }
-  
-  /**
-   * Get output item for a job
-   */
-  private getJobOutputItem(job: string): ItemId {
-    const catalog = this.itemRegistry.list();
-    const ores = catalog.filter((item) => Object.keys(item.mix).some((k) => k.startsWith('ORE_')));
-    const edibles = catalog.filter((item) => this.isEdible(item));
 
-    switch (job) {
-      case 'Minerador':
-        return this.ensureProceduralItemId('minério', (item) => ores.includes(item));
-      case 'Caçador':
-      case 'Pescador':
-      case 'Agricultor':
-        return this.ensureProceduralItemId('alimento', (item) => edibles.includes(item));
-      case 'Mercador':
-        return this.ensureProceduralItemId('mercadoria');
-      case 'Ferreiro':
-      case 'Alquimista':
-      case 'Artesão':
-        return this.ensureProceduralItemId('produto artesanal');
-      case 'Guarda':
-      case 'Aventureiro':
-        return this.ensureProceduralItemId('saque');
-      default:
-        return this.ensureProceduralItemId('item');
-    }
+    // Work makes you hungry
+    modifyNeed(npc, 'hunger', -5);
+
+    // Decay fun need (work is not fun)
+    modifyNeed(npc, 'fun', -2);
   }
 
   /**
@@ -694,13 +993,17 @@ export class GameEngine {
 
     const npc = this.random.choice(this.state.npcs);
 
-    const edibleCatalog = this.itemRegistry.list().filter((item) => this.isEdible(item));
-    const ownedFood = edibleCatalog.find((item) => inventoryHas(npc, item.id, 1));
+    const consumableCatalog = this.itemRegistry.list().filter((item) => this.isEdible(item));
+    let consumed = false;
+    const ownedConsumable = consumableCatalog.find((item) => inventoryHas(npc, item.id, 1));
 
-    if (ownedFood) {
-      inventoryRemove(npc, ownedFood.id, 1, this.indices);
+    if (ownedConsumable) {
+      const isDrink = ownedConsumable.tags?.includes('drink');
+      const verb = isDrink ? 'bebeu' : 'comeu';
+      inventoryRemove(npc, ownedConsumable.id, 1, this.indices);
       satisfyNeed(npc, 'hunger', 30);
-      this.addReportLog(`${npc.name} comeu ${this.describeItem(ownedFood.id)}.`);
+      this.addReportLog(`${npc.name} ${verb} ${this.describeItem(ownedConsumable.id)}.`);
+      consumed = true;
     } else {
       const marketPOI = this.state.worldMap.getPOI('market');
 
@@ -713,7 +1016,7 @@ export class GameEngine {
 
         if (success) {
           const purchasedFood = this.ensureProceduralItemId('alimento', (item) =>
-            edibleCatalog.includes(item),
+            consumableCatalog.includes(item),
           );
           inventoryAdd(npc, purchasedFood, 1, this.indices);
           this.addReportLog(
@@ -723,6 +1026,7 @@ export class GameEngine {
           // Consume it immediately
           inventoryRemove(npc, purchasedFood, 1, this.indices);
           satisfyNeed(npc, 'hunger', 25);
+          consumed = true;
         }
       } else if (marketPOI && !npc.targetPos) {
         // Move to market to buy food
@@ -734,6 +1038,9 @@ export class GameEngine {
           npc.targetPos = undefined;
         }
       }
+    }
+    if (!consumed) {
+      this.addReportLog(`${npc.name} não encontrou comida/bebida.`);
     }
   }
 
@@ -973,13 +1280,7 @@ export class GameEngine {
   }
 
   private isEdible(item: ItemDefinition): boolean {
-    if (item.tags?.some((tag) => tag === 'food' || tag === 'drink')) {
-      return true;
-    }
-
-    return Object.keys(item.mix).some((k) =>
-      ['GLU', 'FRUCT', 'UMAMI', 'H2O'].some((edible) => k === edible),
-    );
+    return item.tags?.some((tag) => tag === 'food' || tag === 'drink') ?? false;
   }
 
   private describeItem(itemId: ItemId): string {
