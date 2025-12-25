@@ -1,4 +1,4 @@
-import type { ItemId } from '../types';
+import type { ItemId, PoiId } from '../types';
 import type { ItemDefinition, ItemRegistry } from './items';
 
 interface RandomLike {
@@ -7,6 +7,7 @@ interface RandomLike {
 }
 
 export type Stockpile = Record<ItemId, number>;
+export type StockpilesByPoi = Record<PoiId, Stockpile>;
 
 export function stockHas(stock: Stockpile, itemId: ItemId, qty: number): boolean {
   return (stock[itemId] ?? 0) >= qty;
@@ -41,4 +42,11 @@ export function stockPickByTag(
   if (candidates.length === 0) return null;
 
   return random.choice(candidates);
+}
+
+export function getPoiStockpile(stockpilesByPoi: StockpilesByPoi, poiId: PoiId): Stockpile {
+  if (!stockpilesByPoi[poiId]) {
+    stockpilesByPoi[poiId] = {};
+  }
+  return stockpilesByPoi[poiId];
 }
