@@ -42,12 +42,12 @@ export function simulateIngestion(
   }
 
   const notes: string[] = [];
-  if (essentialDelta.H2O > 0.05) notes.push('hidratação positiva');
-  if (essentialDelta.H2O < -0.05) notes.push('hidratação reduzida');
-  if (essentialDelta.ATP > 0.05) notes.push('energia potencial aumentada');
-  if (essentialDelta.O2 < -0.05) notes.push('oxigênio consumido');
-  if (essentialDelta.PH < -0.05) notes.push('tendência acidificante');
-  if (essentialDelta.PH > 0.05) notes.push('tendência alcalinizante');
+  if (essentialDelta.H2O > 0.05) notes.push('positive hydration');
+  if (essentialDelta.H2O < -0.05) notes.push('reduced hydration');
+  if (essentialDelta.ATP > 0.05) notes.push('increased potential energy');
+  if (essentialDelta.O2 < -0.05) notes.push('oxygen consumed');
+  if (essentialDelta.PH < -0.05) notes.push('acidifying tendency');
+  if (essentialDelta.PH > 0.05) notes.push('alkalizing tendency');
 
   // TODO: future NPC learning loop can score items based on deltas and observed macro changes.
   return { before, after, essentialDelta, notes };

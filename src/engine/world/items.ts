@@ -63,20 +63,20 @@ export class ItemRegistry {
 
 export function createSeedItemRegistry(): ItemRegistry {
   const seedItems: ItemDefinition[] = [
-    { id: 'berry-red', name: 'Moranguito', mix: { GLU: 0.6, FRUCT: 0.4, DOCE: 0.2, H2O: 0.5 } },
-    { id: 'ore-iron', name: 'Minério de Ferro', mix: { ORE_FE: 1, MINERAL_DUST: 0.1 } },
-    { id: 'ore-copper', name: 'Minério de Cobre', mix: { ORE_CU: 1, MINERAL_DUST: 0.1 } },
-    { id: 'water-flask', name: 'Cantimplora', mix: { H2O: 1 } },
-    { id: 'raw-wood', name: 'Madeira', mix: { FIBER: 0.6, RESIN: 0.3, H2O: 0.2 } },
-    { id: 'raw-stone', name: 'Pedra', mix: { SILICA: 0.5, MINERAL_DUST: 0.4 } },
-    { id: 'raw-coal', name: 'Carvão', mix: { CARBON: 0.5, ORE_COAL: 0.5, COAL: 0.3 } },
-    { id: 'raw-salt', name: 'Sal', mix: { SALT: 0.8 } },
-    { id: 'raw-water', name: 'Água', mix: { H2O: 1 } },
-    { id: 'raw-wool', name: 'Lã Bruta', mix: { FIBER: 0.7, PROTEIN: 0.2, H2O: 0.1 } },
-    { id: 'raw-cotton', name: 'Fardo de Algodão', mix: { FIBER: 0.8, H2O: 0.15 } },
-    { id: 'raw-leather', name: 'Couro Cru', mix: { PROTEIN: 0.6, FAT: 0.2, FIBER: 0.1, H2O: 0.1 } },
-    { id: 'raw-herb', name: 'Ervas Aromáticas', mix: { GLU: 0.2, H2O: 0.4, PH_BUFFER: 0.1, UMAMI: 0.1 } },
-    { id: 'raw-grain', name: 'Grãos', mix: { GLU: 0.5, FIBER: 0.3, H2O: 0.1 } },
+    { id: 'berry-red', name: 'Red Berry', mix: { GLU: 0.6, FRUCT: 0.4, DOCE: 0.2, H2O: 0.5 } },
+    { id: 'ore-iron', name: 'Iron Ore', mix: { ORE_FE: 1, MINERAL_DUST: 0.1 } },
+    { id: 'ore-copper', name: 'Copper Ore', mix: { ORE_CU: 1, MINERAL_DUST: 0.1 } },
+    { id: 'water-flask', name: 'Canteen', mix: { H2O: 1 } },
+    { id: 'raw-wood', name: 'Wood', mix: { FIBER: 0.6, RESIN: 0.3, H2O: 0.2 } },
+    { id: 'raw-stone', name: 'Stone', mix: { SILICA: 0.5, MINERAL_DUST: 0.4 } },
+    { id: 'raw-coal', name: 'Coal', mix: { CARBON: 0.5, ORE_COAL: 0.5, COAL: 0.3 } },
+    { id: 'raw-salt', name: 'Salt', mix: { SALT: 0.8 } },
+    { id: 'raw-water', name: 'Water', mix: { H2O: 1 } },
+    { id: 'raw-wool', name: 'Raw Wool', mix: { FIBER: 0.7, PROTEIN: 0.2, H2O: 0.1 } },
+    { id: 'raw-cotton', name: 'Cotton Bale', mix: { FIBER: 0.8, H2O: 0.15 } },
+    { id: 'raw-leather', name: 'Raw Leather', mix: { PROTEIN: 0.6, FAT: 0.2, FIBER: 0.1, H2O: 0.1 } },
+    { id: 'raw-herb', name: 'Aromatic Herbs', mix: { GLU: 0.2, H2O: 0.4, PH_BUFFER: 0.1, UMAMI: 0.1 } },
+    { id: 'raw-grain', name: 'Grains', mix: { GLU: 0.5, FIBER: 0.3, H2O: 0.1 } },
   ];
 
   return new ItemRegistry(seedItems);
