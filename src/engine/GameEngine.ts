@@ -12,7 +12,7 @@ import { modifyNeed, satisfyNeed, syncNeedsFromMacro } from './systems/needs';
 import { performSocialInteraction } from './systems/social';
 import { inventoryAdd, inventoryRemove, inventoryHas } from './world/inventory';
 import { tickNpcChemistry } from './systems/chemistry';
-import { REACTIONS_BODY, type Mix } from './dna';
+import { mixMerge, REACTIONS_BODY, REACTIONS_LIBRARY, runReactor, flattenReactions, type Mix } from './dna';
 import { createSeedItemRegistry, ItemRegistry } from './world/items';
 
 // Constants for simulation
@@ -59,6 +59,7 @@ export class GameEngine {
   // Phase 3: Track initial economy gold for invariant checks
   private initialEconomyGold: number = 0;
   private itemRegistry: ItemRegistry;
+  private timeSinceLastItemSynthesis = 0;
 
   constructor() {
     this.random = new Random();
@@ -884,6 +885,9 @@ export class GameEngine {
         // Chemistry tick informs needs instead of arbitrary decay
         this.applyChemistryTick(ACTION_TICK_INTERVAL / 1000);
 
+        // World crafting tick: hook procedural item system into main loop
+        this.maybeSynthesizeProceduralItem(ACTION_TICK_INTERVAL);
+
         this.executeWorldActions();
         
         // Phase 3: Validate economy invariants in development mode
@@ -911,6 +915,50 @@ export class GameEngine {
       const macro = tickNpcChemistry(npc, REACTIONS_BODY, dtSeconds);
       syncNeedsFromMacro(npc, macro);
     }
+  }
+
+  /**
+   * Periodically generate a new procedurally-reacted item and place it into the world.
+   */
+  private maybeSynthesizeProceduralItem(dtMs: number): void {
+    this.timeSinceLastItemSynthesis += dtMs;
+
+    // Run synthesis roughly every 10 seconds of simulation time
+    if (this.timeSinceLastItemSynthesis < 10000 || this.state.npcs.length === 0) {
+      return;
+    }
+
+    this.timeSinceLastItemSynthesis = 0;
+
+    const catalog = this.itemRegistry.list();
+    if (catalog.length === 0) return;
+
+    const seed = this.random.choice(catalog);
+
+    // Enrich the seed mix with ambient factors so reactor rules can fire
+    const ambient: Mix = {
+      O2: 0.5 + 0.5 * this.random.next(),
+      H2O: 0.2 + 0.4 * this.random.next(),
+      TEMP: 0.5 + 0.5 * this.random.next(),
+    };
+
+    const reactedMix = runReactor(
+      mixMerge(seed.mix, ambient),
+      {
+        temperature: ambient.TEMP,
+        tags: { rainfall: ambient.H2O, trust: this.random.next() },
+        steps: 4,
+        dt: 0.5,
+      },
+      flattenReactions(REACTIONS_LIBRARY),
+    );
+
+    const label = `${seed.name} experimental`;
+    const newItemId = this.itemRegistry.spawnFromMix(label, reactedMix);
+    const carrier = this.random.choice(this.state.npcs);
+    inventoryAdd(carrier, newItemId, 1, this.indices);
+
+    this.addReportLog(`${carrier.name} adquiriu um novo item procedimental: ${label}.`);
   }
 
   getItemMix(itemId: ItemId): Mix | undefined {

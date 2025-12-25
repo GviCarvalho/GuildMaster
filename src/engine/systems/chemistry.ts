@@ -17,7 +17,10 @@ export function ensureChemistry(npc: NPC): ChemistryState {
       blood: {},
     };
   }
-  return npc.chemistry;
+  npc.chemistry.body ??= { GLU: 0.5, H2O: 0.5, O2: 0.5, TEMP: 0.5, PH: 0.5 };
+  npc.chemistry.stomach ??= {};
+  npc.chemistry.blood ??= {};
+  return npc.chemistry as ChemistryState;
 }
 
 export function tickNpcChemistry(npc: NPC, reactions: ReactionRule[], dtSeconds: number): MacroSnapshot {
