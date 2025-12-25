@@ -948,7 +948,9 @@ export class GameEngine {
       flattenReactions(REACTIONS_LIBRARY),
     );
 
-    const label = `${labelPrefix} ${seed.name} experimental`.trim();
+    const labelBase = labelPrefix ? `Procedural ${labelPrefix}` : 'Procedural Item';
+    // Placeholder label; Analyzer will enrich procedural item names in a later pass.
+    const label = labelBase.trim();
     return this.itemRegistry.spawnFromMix(label, reactedMix);
   }
 

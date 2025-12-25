@@ -274,10 +274,68 @@ export function deriveMacroSnapshot(body: Mix): MacroSnapshot {
 ========================= */
 
 export const SUBSTANCES: Substance[] = [
-  'H2O','O2','CO2','N2','IRON','CARBON','SILICA','SALT','MINERAL_DUST','HUMIDADE','D','Y',
-  'GLU','FRUCT','FIBER','AMARGO','DOCE','UMAMI',
-  'ATP','TOX_A','ANT_B','INFLAM','SER','DOPA','CORT','ADREN','STRESS','TEMP','PH','ENZ_X','ENZ_METAL','SOCIAL_BOND',
-  'ORE_FE','ORE_CU','ORE_SN','ORE_COAL','PIG_IRON','BRONZE','STEEL','SLAG',
+  // Atmosphere and basics
+  'H2O',
+  'O2',
+  'CO2',
+  'N2',
+  'TEMP',
+  'PH',
+  'HUMIDADE',
+  'D',
+  'Y',
+
+  // Minerals and geology
+  'SILICA',
+  'MINERAL_DUST',
+  'SALT',
+  'CLAY',
+  'LIMESTONE',
+  'ASH',
+
+  // Metals and ores
+  'IRON',
+  'CARBON',
+  'ORE_FE',
+  'ORE_CU',
+  'ORE_SN',
+  'ORE_COAL',
+  'ORE_AU',
+  'PIG_IRON',
+  'BRONZE',
+  'STEEL',
+  'SLAG',
+
+  // Fuels
+  'COAL',
+  'CHAR',
+  'OIL',
+
+  // Biological basics
+  'GLU',
+  'FRUCT',
+  'FIBER',
+  'RESIN',
+  'FAT',
+  'PROTEIN',
+  'AMARGO',
+  'DOCE',
+  'UMAMI',
+  'BIO_MASS',
+
+  // Signaling and metabolism
+  'ATP',
+  'TOX_A',
+  'ANT_B',
+  'INFLAM',
+  'SER',
+  'DOPA',
+  'CORT',
+  'ADREN',
+  'STRESS',
+  'SOCIAL_BOND',
+  'ENZ_X',
+  'ENZ_METAL',
 ];
 
 export const REACTIONS_WORLD: ReactionRule[] = [
