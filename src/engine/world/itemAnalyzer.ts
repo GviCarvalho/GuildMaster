@@ -52,8 +52,11 @@ export function analyzeMix(mix: Mix): {
 
   const ore = hasRelevant(normalized, ([k, v]) => k.startsWith('ORE_') && v > TAG_THRESHOLD);
   const metal = hasRelevant(normalized, ([k, v]) => ['IRON', 'FE', 'CU', 'SN', 'AU'].includes(k) && v > TAG_THRESHOLD);
-  const wood = hasRelevant(normalized, ([k, v]) => ['FIBER', 'RESIN'].includes(k) && v > TAG_THRESHOLD);
-  const stone = hasRelevant(normalized, ([k, v]) => ['SILICA', 'MINERAL_DUST'].includes(k) && v > TAG_THRESHOLD);
+  const fiberShare = proportion(normalized, ['FIBER']);
+  const resinShare = proportion(normalized, ['RESIN']);
+  const wood = resinShare > 0.1 || (fiberShare > 0.25 && resinShare > 0.05);
+  const fiber = fiberShare > TAG_THRESHOLD;
+  const stone = !ore && hasRelevant(normalized, ([k, v]) => ['SILICA', 'MINERAL_DUST'].includes(k) && v > TAG_THRESHOLD);
   const hydration = proportion(normalized, ['H2O']);
   const food = hasRelevant(normalized, ([k, v]) => ['GLU', 'FRUCT', 'UMAMI', 'FAT', 'PROTEIN'].includes(k) && v > TAG_THRESHOLD);
   const drink = hydration > 0.2;
@@ -68,6 +71,7 @@ export function analyzeMix(mix: Mix): {
   if (ore) tags.push('ore');
   if (metal) tags.push('metal');
   if (wood) tags.push('wood');
+  else if (fiber) tags.push('fiber');
   if (stone) tags.push('stone');
   if (food) tags.push('food');
   if (drink) tags.push('drink');

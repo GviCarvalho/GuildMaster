@@ -160,16 +160,17 @@ export class GameEngine {
       drink: 40,
       food: 34,
       organic: 14,
+      fiber: 20,
       balancing: 8,
       metal: 12,
     };
 
     const poiSeeds: Record<PoiId, Record<string, number>> = {
       'guild-hall': { ...baseSeeds },
-      market: { ...baseSeeds },
+      market: { ...baseSeeds, fiber: 26 },
       mine: { ...baseSeeds, ore: 40, metal: 20, stone: 42, fuel: 24 },
-      forest: { ...baseSeeds, wood: 55, drink: 30, organic: 40 },
-      tavern: { ...baseSeeds, food: 50, drink: 60, wood: 12, stone: 10 },
+      forest: { ...baseSeeds, wood: 55, drink: 30, organic: 40, fiber: 35 },
+      tavern: { ...baseSeeds, food: 50, drink: 60, wood: 12, stone: 10, fiber: 18 },
     };
 
     for (const [poiId, seeds] of Object.entries(poiSeeds)) {
@@ -283,15 +284,15 @@ export class GameEngine {
       if (familia.casta === 'nobre') {
         job = this.random.choice(['Aristocrata', 'Político', 'Mecenas']);
       } else if (familia.casta === 'artesao' || stats.destreza > 7) {
-        job = this.random.choice(['Ferreiro', 'Artesão', 'Alfaiate', 'Construtor']);
+        job = this.random.choice(['Ferreiro', 'Artesão', 'Alfaiate', 'Construtor', 'Tecelã']);
       } else if (familia.casta === 'comerciante' || stats.carisma > 7) {
         job = 'Mercador';
       } else {
         // Plebeus ou outros
-        if (stats.forca > 7) job = this.random.choice(['Guarda', 'Soldado']);
+        if (stats.forca > 7) job = this.random.choice(['Guarda', 'Soldado', 'Lenhador']);
         else if (stats.sabedoria > 7) job = this.random.choice(['Alquimista', 'Ervanário']);
-        else if (stats.destreza > 7) job = 'Caçador';
-        else job = this.random.choice(['Agricultor', 'Pescador', 'Minerador']);
+        else if (stats.destreza > 7) job = this.random.choice(['Caçador', 'Lenhador']);
+        else job = this.random.choice(['Agricultor', 'Fazendeiro', 'Pescador', 'Minerador']);
       }
       
       // Definir dinheiro inicial baseado na casta
@@ -699,15 +700,15 @@ export class GameEngine {
         return {
           intent: this.random.next() > 0.55 ? 'tool' : 'material',
           process: this.random.next() > 0.5 ? 'cook' : 'refine',
-          requiredTags: [['wood', 'organic'], ['wood', 'organic']],
+          requiredTags: [['wood', 'organic', 'fiber'], ['wood', 'organic', 'fiber']],
           optionalTags: [['stone']],
         };
       case 'Alfaiate':
         return {
           intent: 'material',
           process: 'cook',
-          requiredTags: [['organic'], ['organic']],
-          optionalTags: [['wood']],
+          requiredTags: [['fiber'], ['fiber']],
+          optionalTags: [['organic']],
         };
       case 'Construtor':
         return {
@@ -716,12 +717,33 @@ export class GameEngine {
           requiredTags: [['stone'], ['wood', 'organic']],
           optionalTags: [['fuel']],
         };
+      case 'Tecelã':
+        return {
+          intent: 'material',
+          process: 'cook',
+          requiredTags: [['fiber'], ['fiber', 'organic']],
+          optionalTags: [['organic']],
+        };
+      case 'Lenhador':
+        return {
+          intent: 'material',
+          process: 'refine',
+          requiredTags: [['wood'], ['wood']],
+          optionalTags: [['fuel']],
+        };
       case 'Agricultor':
         return {
           intent: 'food',
           process: 'cook',
           requiredTags: [['food']],
           optionalTags: [['drink']],
+        };
+      case 'Fazendeiro':
+        return {
+          intent: this.random.next() > 0.5 ? 'food' : 'drink',
+          process: this.random.next() > 0.4 ? 'cook' : 'brew',
+          requiredTags: [['food', 'organic'], ['drink']],
+          optionalTags: [['fiber', 'organic']],
         };
       case 'Alquimista':
       case 'Ervanário':
@@ -735,8 +757,22 @@ export class GameEngine {
         return {
           intent: 'material',
           process: 'refine',
-          requiredTags: [['ore', 'stone'], ['fuel']],
-          optionalTags: [['wood', 'organic']],
+          requiredTags: [['ore', 'stone'], ['stone']],
+          optionalTags: [['fuel']],
+        };
+      case 'Caçador':
+        return {
+          intent: this.random.next() > 0.4 ? 'food' : 'material',
+          process: 'cook',
+          requiredTags: [['organic']],
+          optionalTags: [['fiber'], ['drink']],
+        };
+      case 'Pescador':
+        return {
+          intent: 'food',
+          process: 'cook',
+          requiredTags: [['food', 'drink']],
+          optionalTags: [['organic']],
         };
       default:
         return null;
@@ -965,7 +1001,13 @@ export class GameEngine {
     let requiredPOI: POI | undefined;
     if (npc.job === 'Minerador') {
       requiredPOI = this.state.worldMap.getPOI('mine');
-    } else if (npc.job === 'Caçador' || npc.job === 'Pescador' || npc.job === 'Agricultor') {
+    } else if (
+      npc.job === 'Caçador' ||
+      npc.job === 'Pescador' ||
+      npc.job === 'Agricultor' ||
+      npc.job === 'Fazendeiro' ||
+      npc.job === 'Lenhador'
+    ) {
       requiredPOI = this.state.worldMap.getPOI('forest');
     } else if (npc.job === 'Mercador') {
       requiredPOI = this.state.worldMap.getPOI('market');
