@@ -72,6 +72,11 @@ export function createSeedItemRegistry(): ItemRegistry {
     { id: 'raw-coal', name: 'Carvão', mix: { CARBON: 0.5, ORE_COAL: 0.5, COAL: 0.3 } },
     { id: 'raw-salt', name: 'Sal', mix: { SALT: 0.8 } },
     { id: 'raw-water', name: 'Água', mix: { H2O: 1 } },
+    { id: 'raw-wool', name: 'Lã Bruta', mix: { FIBER: 0.7, PROTEIN: 0.2, H2O: 0.1 } },
+    { id: 'raw-cotton', name: 'Fardo de Algodão', mix: { FIBER: 0.8, H2O: 0.15 } },
+    { id: 'raw-leather', name: 'Couro Cru', mix: { PROTEIN: 0.6, FAT: 0.2, FIBER: 0.1, H2O: 0.1 } },
+    { id: 'raw-herb', name: 'Ervas Aromáticas', mix: { GLU: 0.2, H2O: 0.4, PH_BUFFER: 0.1, UMAMI: 0.1 } },
+    { id: 'raw-grain', name: 'Grãos', mix: { GLU: 0.5, FIBER: 0.3, H2O: 0.1 } },
   ];
 
   return new ItemRegistry(seedItems);

@@ -52,19 +52,26 @@ export function analyzeMix(mix: Mix): {
 
   const ore = hasRelevant(normalized, ([k, v]) => k.startsWith('ORE_') && v > TAG_THRESHOLD);
   const metal = hasRelevant(normalized, ([k, v]) => ['IRON', 'FE', 'CU', 'SN', 'AU'].includes(k) && v > TAG_THRESHOLD);
-  const wood = hasRelevant(normalized, ([k, v]) => ['FIBER', 'RESIN'].includes(k) && v > TAG_THRESHOLD);
-  const stone = hasRelevant(normalized, ([k, v]) => ['SILICA', 'MINERAL_DUST'].includes(k) && v > TAG_THRESHOLD);
+  const fiberShare = proportion(normalized, ['FIBER']);
+  const resinShare = proportion(normalized, ['RESIN']);
+  const wood = resinShare > 0.1 || (fiberShare > 0.25 && resinShare > 0.05);
+  const fiber = fiberShare > TAG_THRESHOLD;
+  const stone = !ore && hasRelevant(normalized, ([k, v]) => ['SILICA', 'MINERAL_DUST'].includes(k) && v > TAG_THRESHOLD);
+  const hydration = proportion(normalized, ['H2O']);
   const food = hasRelevant(normalized, ([k, v]) => ['GLU', 'FRUCT', 'UMAMI', 'FAT', 'PROTEIN'].includes(k) && v > TAG_THRESHOLD);
-  const drink = hasRelevant(normalized, ([k, v]) => k === 'H2O' && v > TAG_THRESHOLD);
+  const drink = hydration > 0.2;
   const fuel = hasRelevant(normalized, ([k, v]) => ['CARBON', 'COAL', 'ORE_COAL'].includes(k) && v > TAG_THRESHOLD);
   const reactive = hasRelevant(normalized, ([k, v]) =>
     ['OXIDIZER', 'PH_ACID', 'PH_BASE', 'CHELATOR'].includes(k) && v > TAG_THRESHOLD,
   );
   const balancer = hasRelevant(normalized, ([k, v]) => k === 'PH_BUFFER' && v > TAG_THRESHOLD);
+  const forgedMarker = normalized.FORGED ?? 0;
+  const refinedMarker = normalized.REFINED ?? 0;
 
   if (ore) tags.push('ore');
   if (metal) tags.push('metal');
   if (wood) tags.push('wood');
+  else if (fiber) tags.push('fiber');
   if (stone) tags.push('stone');
   if (food) tags.push('food');
   if (drink) tags.push('drink');
@@ -73,8 +80,15 @@ export function analyzeMix(mix: Mix): {
   if (balancer) tags.push('balancing');
   if (food || wood) tags.push('organic');
   if (ore || stone || metal) tags.push('inorganic');
+  if (forgedMarker > TAG_THRESHOLD) {
+    tags.push('forged');
+    if (!tags.includes('tool')) tags.push('tool');
+  }
+  if (refinedMarker > TAG_THRESHOLD) {
+    tags.push('refined');
+    if (!tags.includes('material')) tags.push('material');
+  }
 
-  const hydration = proportion(normalized, ['H2O']);
   const calories = proportion(normalized, ['GLU', 'FRUCT', 'FAT', 'PROTEIN']);
   const bitterness = proportion(normalized, ['AMARGO']);
   const umami = proportion(normalized, ['UMAMI']);
@@ -120,6 +134,14 @@ export function analyzeMix(mix: Mix): {
   const dominantOre = oreEntries.length
     ? oreEntries.reduce((best, current) => (current[1] > best[1] ? current : best))[0]
     : undefined;
+  const metalCandidates = ['FE', 'IRON', 'CU', 'SN', 'AU', 'ORE_FE', 'ORE_CU', 'ORE_SN', 'ORE_AU'];
+  const dominantMetalEntry = Object.entries(normalized)
+    .filter(([k]) => metalCandidates.includes(k))
+    .reduce<[string, number] | null>((best, current) => {
+      if (!best || current[1] > best[1]) return current;
+      return best;
+    }, null);
+  const dominantMetal = dominantMetalEntry?.[0];
 
   const oreNameMap: Record<string, string> = {
     ORE_FE: 'Minério de Ferro',
@@ -128,15 +150,33 @@ export function analyzeMix(mix: Mix): {
     ORE_AU: 'Minério de Ouro',
   };
 
+  const metalNameMap: Record<string, string> = {
+    FE: 'Ferro',
+    IRON: 'Ferro',
+    CU: 'Cobre',
+    SN: 'Estanho',
+    AU: 'Ouro',
+    ORE_FE: 'Ferro',
+    ORE_CU: 'Cobre',
+    ORE_SN: 'Estanho',
+    ORE_AU: 'Ouro',
+  };
+
   let canonicalName = 'Material';
-  if (tags.includes('ore')) {
+  if (forgedMarker > TAG_THRESHOLD && (tags.includes('metal') || tags.includes('ore'))) {
+    const metalName = dominantMetal ? metalNameMap[dominantMetal] ?? 'Metal' : 'Metal';
+    canonicalName = `Ferramenta de ${metalName}`;
+  } else if (refinedMarker > TAG_THRESHOLD && (tags.includes('ore') || tags.includes('metal'))) {
+    const metalName = dominantMetal ? metalNameMap[dominantMetal] ?? 'Metal' : 'Metal';
+    canonicalName = dominantMetal ? `Lingote de ${metalName}` : 'Metal Refinado';
+  } else if (tags.includes('ore')) {
     canonicalName = dominantOre ? oreNameMap[dominantOre] ?? 'Minério' : 'Minério';
   } else if (tags.includes('wood')) {
     canonicalName = 'Madeira';
   } else if (tags.includes('stone')) {
     canonicalName = 'Pedra';
   } else if (tags.includes('drink')) {
-    canonicalName = traits.hydration > 0.8 ? 'Água' : 'Bebida';
+    canonicalName = traits.hydration > 0.7 && (normalized.H2O ?? 0) > 0.7 ? 'Água' : 'Bebida';
   } else if (tags.includes('food')) {
     canonicalName = 'Comida';
   } else if (tags.includes('fuel')) {
