@@ -14,22 +14,22 @@ export type ItemId = string;
 export type PoiId = string;
 export type CellId = number;
 
-// --- Novas definições para o sistema social ---
-export type Casta = 'nobre' | 'comerciante' | 'plebeu' | 'artesao';
+// --- Social system definitions ---
+export type Caste = 'noble' | 'merchant' | 'commoner' | 'artisan';
 
 export interface Stats {
-  forca: number;
-  vitalidade: number;
-  destreza: number;
-  sabedoria: number;
-  inteligencia: number;
-  carisma: number;
+  strength: number;
+  vitality: number;
+  dexterity: number;
+  wisdom: number;
+  intelligence: number;
+  charisma: number;
 }
 
-export interface Familia {
+export interface Family {
   id: string;
-  sobrenome: string;
-  casta: Casta;
+  surname: string;
+  caste: Caste;
 }
 // ----------------------------------------------
 
@@ -63,12 +63,12 @@ export interface NPC {
   money: number;
   job: string;
   
-  // --- Propriedades Sociais ---
-  familiaId: string;
-  casta: Casta;
-  reputacao: number;
+  // --- Social properties ---
+  familyId: string;
+  caste: Caste;
+  reputation: number;
   stats: Stats;
-  talentos: string[]; // Lista de habilidades especiais
+  talents: string[]; // List of special skills
   // ---------------------------
 
   traits: string[];
@@ -120,7 +120,7 @@ export interface GameState {
   simRunning: boolean;
   reportLog: ReportLogEntry[];
   
-  familias: Familia[]; // <-- Lista de famílias geradas
+  families: Family[]; // <-- List of generated families
   npcs: NPC[];
   
   // Phase 1: Grid-based world map

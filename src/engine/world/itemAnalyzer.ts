@@ -144,50 +144,50 @@ export function analyzeMix(mix: Mix): {
   const dominantMetal = dominantMetalEntry?.[0];
 
   const oreNameMap: Record<string, string> = {
-    ORE_FE: 'Minério de Ferro',
-    ORE_CU: 'Minério de Cobre',
-    ORE_SN: 'Minério de Estanho',
-    ORE_AU: 'Minério de Ouro',
+    ORE_FE: 'Iron Ore',
+    ORE_CU: 'Copper Ore',
+    ORE_SN: 'Tin Ore',
+    ORE_AU: 'Gold Ore',
   };
 
   const metalNameMap: Record<string, string> = {
-    FE: 'Ferro',
-    IRON: 'Ferro',
-    CU: 'Cobre',
-    SN: 'Estanho',
-    AU: 'Ouro',
-    ORE_FE: 'Ferro',
-    ORE_CU: 'Cobre',
-    ORE_SN: 'Estanho',
-    ORE_AU: 'Ouro',
+    FE: 'Iron',
+    IRON: 'Iron',
+    CU: 'Copper',
+    SN: 'Tin',
+    AU: 'Gold',
+    ORE_FE: 'Iron',
+    ORE_CU: 'Copper',
+    ORE_SN: 'Tin',
+    ORE_AU: 'Gold',
   };
 
   let canonicalName = 'Material';
   if (forgedMarker > TAG_THRESHOLD && (tags.includes('metal') || tags.includes('ore'))) {
     const metalName = dominantMetal ? metalNameMap[dominantMetal] ?? 'Metal' : 'Metal';
-    canonicalName = `Ferramenta de ${metalName}`;
+    canonicalName = `${metalName} Tool`;
   } else if (refinedMarker > TAG_THRESHOLD && (tags.includes('ore') || tags.includes('metal'))) {
     const metalName = dominantMetal ? metalNameMap[dominantMetal] ?? 'Metal' : 'Metal';
-    canonicalName = dominantMetal ? `Lingote de ${metalName}` : 'Metal Refinado';
+    canonicalName = dominantMetal ? `${metalName} Ingot` : 'Refined Metal';
   } else if (tags.includes('ore')) {
-    canonicalName = dominantOre ? oreNameMap[dominantOre] ?? 'Minério' : 'Minério';
+    canonicalName = dominantOre ? oreNameMap[dominantOre] ?? 'Ore' : 'Ore';
   } else if (tags.includes('wood')) {
-    canonicalName = 'Madeira';
+    canonicalName = 'Wood';
   } else if (tags.includes('stone')) {
-    canonicalName = 'Pedra';
+    canonicalName = 'Stone';
   } else if (tags.includes('drink')) {
-    canonicalName = traits.hydration > 0.7 && (normalized.H2O ?? 0) > 0.7 ? 'Água' : 'Bebida';
+    canonicalName = traits.hydration > 0.7 && (normalized.H2O ?? 0) > 0.7 ? 'Water' : 'Drink';
   } else if (tags.includes('food')) {
-    canonicalName = 'Comida';
+    canonicalName = 'Food';
   } else if (tags.includes('fuel')) {
-    canonicalName = 'Combustível';
+    canonicalName = 'Fuel';
   }
 
   const qualifiers: string[] = [];
-  if (traits.mineralness > 0.35 && tags.includes('drink')) qualifiers.push('salobra');
-  if (traits.mineralness > 0.35 && (tags.includes('ore') || tags.includes('metal'))) qualifiers.push('impuro');
-  if (traits.calories > 0.45 && tags.includes('food')) qualifiers.push('nutritivo');
-  if (traits.reactivity > 0.35) qualifiers.push('reativo');
+  if (traits.mineralness > 0.35 && tags.includes('drink')) qualifiers.push('brackish');
+  if (traits.mineralness > 0.35 && (tags.includes('ore') || tags.includes('metal'))) qualifiers.push('impure');
+  if (traits.calories > 0.45 && tags.includes('food')) qualifiers.push('nutritious');
+  if (traits.reactivity > 0.35) qualifiers.push('reactive');
 
   const displayName = qualifiers.length ? `${canonicalName} (${qualifiers.join(', ')})` : canonicalName;
 

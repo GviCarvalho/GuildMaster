@@ -33,7 +33,7 @@ body {
   overflow: hidden;
 }
 
-/* “Piso de madeira” fake por CSS (sem imagem) */
+/* Faux wood floor created with CSS (no image) */
 .gm-stage {
   position: relative;
   width: 100vw;
@@ -58,7 +58,7 @@ body {
   border: 1px solid rgba(255,255,255,0.06);
 }
 
-/* Layout geral: esquerda (ações) + centro (sala) + direita (painéis) */
+/* General layout: left (actions) + center (room) + right (panels) */
 .gm-layout {
   height: 100%;
   display: grid;
@@ -67,7 +67,7 @@ body {
   gap: 14px;
 }
 
-/* Barra de ações (esquerda) */
+/* Action bar (left) */
 .gm-actions {
   background: var(--panel-strong);
   border: 1px solid var(--border);
@@ -106,7 +106,7 @@ body {
   box-shadow: 0 0 12px rgba(241, 196, 15, 0.4);
 }
 
-/* Sala central (como se fosse o interior da guilda) */
+/* Central room (guild interior placeholder) */
 .gm-room {
   position: relative;
   border-radius: var(--radius);
@@ -170,7 +170,7 @@ body {
   position: relative;
   z-index: 1;
   height: 100%;
-  padding: 88px 18px 18px 18px; /* espaço pro HUD */
+  padding: 88px 18px 18px 18px; /* space reserved for the HUD */
   display: grid;
   grid-template-columns: 1.3fr 1fr;
   gap: 14px;
@@ -240,7 +240,7 @@ body {
   border-color: rgba(241, 196, 15, 0.45);
 }
 
-/* Painel direito: “diário / quadro” */
+/* Right panel: journal/board */
 .gm-right {
   display: grid;
   grid-template-rows: 180px 1fr;
@@ -265,7 +265,7 @@ body {
   border-radius: 10px;
 }
 
-/* Responsivo simples */
+/* Simple responsiveness */
 @media (max-width: 1100px) {
   .gm-layout {
     grid-template-columns: 84px 1fr;

@@ -8,8 +8,8 @@ import type {
   Quest,
   NPC,
   ReportLogEntry,
-  Familia,
-  Casta,
+  Family,
+  Caste,
   Stats,
   ItemId,
   CraftIntent,
@@ -119,16 +119,16 @@ export class GameEngine {
     const worldMap = new WorldMap(64, 64);
     worldMap.generateCity();
 
-    // 1. Gerar Famílias primeiro
-    const familias = this.generateFamilies(20);
+    // 1. Generate families first
+    const families = this.generateFamilies(20);
 
-    // 2. Initialize NPCs usando as famílias
-    const npcs = this.generateInitialNPCs(100, worldMap, familias);
+    // 2. Initialize NPCs using the families
+    const npcs = this.generateInitialNPCs(100, worldMap, families);
 
     const reportLog: ReportLogEntry[] = [
       {
         timestamp: 0,
-        message: 'Bem-vindo ao ProjectGM. A guilda está pronta para começar.',
+        message: 'Welcome to ProjectGM. The guild is ready to begin.',
       },
     ];
 
@@ -140,7 +140,7 @@ export class GameEngine {
       timeOfDaySec: 0,
       simRunning: false,
       reportLog,
-      familias, // Adiciona famílias ao estado
+      families, // Add generated families to state
       npcs,
       worldMap,
       cityTreasury: 0, // Will be initialized by initializeEconomy
@@ -189,81 +189,81 @@ export class GameEngine {
     // TODO: expand to regional depots/biomes and NPC logistics when maps diversify.
   }
 
-  // Gera as famílias com castas distribuídas
-  private generateFamilies(count: number): Familia[] {
-    const sobrenomes = [
-      'Silva', 'Cavalcanti', 'Lins', 'Holanda', 'Barros', 
+  // Generate families with distributed castes
+  private generateFamilies(count: number): Family[] {
+    const surnames = [
+      'Silva', 'Cavalcanti', 'Lins', 'Holanda', 'Barros',
       'Melo', 'Albuquerque', 'Santos', 'Oliveira', 'Souza',
       'Costa', 'Ferreira', 'Rodrigues', 'Nascimento', 'Lima'
     ];
-    
-    const familias: Familia[] = [];
-    
-    for (let i = 0; i < count; i++) {
-      // Distribuição de peso: menos nobres, mais plebeus
-      const rand = this.random.next();
-      let casta: Casta = 'plebeu';
-      
-      if (rand > 0.90) casta = 'nobre';       // 10% Nobres
-      else if (rand > 0.75) casta = 'comerciante'; // 15% Comerciantes
-      else if (rand > 0.60) casta = 'artesao';     // 15% Artesãos
-      // 60% Plebeus
 
-      familias.push({
+    const families: Family[] = [];
+
+    for (let i = 0; i < count; i++) {
+      // Weight distribution: fewer nobles, more commoners
+      const rand = this.random.next();
+      let caste: Caste = 'commoner';
+
+      if (rand > 0.90) caste = 'noble'; // 10% Nobles
+      else if (rand > 0.75) caste = 'merchant'; // 15% Merchants
+      else if (rand > 0.60) caste = 'artisan'; // 15% Artisans
+      // 60% Commoners
+
+      families.push({
         id: `fam-${i}`,
-        sobrenome: this.random.choice(sobrenomes),
-        casta: casta
+        surname: this.random.choice(surnames),
+        caste,
       });
     }
-    return familias;
+    return families;
   }
 
-  // Gera Stats baseados na Casta
-  private generateStats(casta: Casta): Stats {
-    // Base aleatória 3-10
+  // Generate stats based on caste
+  private generateStats(caste: Caste): Stats {
+    // Base roll 3-10
     const roll = () => this.random.nextInt(3, 10);
     const stats: Stats = {
-      forca: roll(), 
-      vitalidade: roll(), 
-      destreza: roll(),
-      sabedoria: roll(), 
-      inteligencia: roll(), 
-      carisma: roll()
+      strength: roll(),
+      vitality: roll(),
+      dexterity: roll(),
+      wisdom: roll(),
+      intelligence: roll(),
+      charisma: roll()
     };
 
-    // Bônus de Casta
-    switch (casta) {
-      case 'nobre': 
-        stats.carisma += 3; 
-        stats.inteligencia += 2; 
+    // Caste bonus
+    switch (caste) {
+      case 'noble':
+        stats.charisma += 3;
+        stats.intelligence += 2;
         break;
-      case 'artesao': 
-        stats.destreza += 3; 
-        stats.sabedoria += 1; 
+      case 'artisan':
+        stats.dexterity += 3;
+        stats.wisdom += 1;
         break;
-      case 'plebeu': 
-        stats.forca += 2; 
-        stats.vitalidade += 2; 
+      case 'commoner':
+        stats.strength += 2;
+        stats.vitality += 2;
         break;
-      case 'comerciante': 
-        stats.carisma += 2; 
-        stats.sabedoria += 2; 
+      case 'merchant':
+        stats.charisma += 2;
+        stats.wisdom += 2;
         break;
     }
     return stats;
   }
 
-  private generateInitialNPCs(count: number, worldMap: WorldMap, familias: Familia[]): NPC[] {
+  private generateInitialNPCs(count: number, worldMap: WorldMap, families: Family[]): NPC[] {
     const firstNames = [
-      'João', 'Maria', 'Pedro', 'Ana', 'Carlos', 'Beatriz', 
-      'Lucas', 'Julia', 'Rafael', 'Camila', 'Fernando', 'Isabela', 
-      'Gabriel', 'Larissa', 'Mateus', 'Sofia', 'Bruno', 'Amanda', 
-      'Diego', 'Letícia',
+      'John', 'Mary', 'Peter', 'Anna', 'Charles', 'Beatrice',
+      'Luke', 'Julia', 'Raphael', 'Camille', 'Fernando', 'Isabella',
+      'Gabriel', 'Larissa', 'Matthew', 'Sophie', 'Bruno', 'Amanda',
+      'Diego', 'Leticia',
     ];
 
     const traits = [
-      'Corajoso', 'Cauteloso', 'Ganancioso', 'Generoso', 'Habilidoso', 
-      'Sortudo', 'Trabalhador', 'Preguiçoso', 'Esperto', 'Ingênuo',
+      'Brave', 'Cautious', 'Greedy', 'Generous', 'Skilled',
+      'Lucky', 'Hardworking', 'Lazy', 'Clever', 'Naive',
     ];
 
     const npcs: NPC[] = [];
@@ -271,36 +271,36 @@ export class GameEngine {
     for (let i = 0; i < count; i++) {
       const firstName = this.random.choice(firstNames);
       
-      // a) Escolher família
-      const familia = this.random.choice(familias);
+      // a) Choose family
+      const family = this.random.choice(families);
 
-      // b) Gerar Stats e Reputação
-      const stats = this.generateStats(familia.casta);
-      const reputacao = familia.casta === 'nobre' ? 50 : 0;
-      
-      // c) Definir Job baseado na Casta/Stats
-      let job = 'Desempregado';
-      
-      if (familia.casta === 'nobre') {
-        job = this.random.choice(['Aristocrata', 'Político', 'Mecenas']);
-      } else if (familia.casta === 'artesao' || stats.destreza > 7) {
-        job = this.random.choice(['Ferreiro', 'Artesão', 'Alfaiate', 'Construtor', 'Tecelã']);
-      } else if (familia.casta === 'comerciante' || stats.carisma > 7) {
-        job = 'Mercador';
+      // b) Generate stats and reputation
+      const stats = this.generateStats(family.caste);
+      const reputation = family.caste === 'noble' ? 50 : 0;
+
+      // c) Define job based on caste/stats
+      let job = 'Unemployed';
+
+      if (family.caste === 'noble') {
+        job = this.random.choice(['Aristocrat', 'Politician', 'Patron']);
+      } else if (family.caste === 'artisan' || stats.dexterity > 7) {
+        job = this.random.choice(['Blacksmith', 'Artisan', 'Tailor', 'Builder', 'Weaver']);
+      } else if (family.caste === 'merchant' || stats.charisma > 7) {
+        job = 'Merchant';
       } else {
-        // Plebeus ou outros
-        if (stats.forca > 7) job = this.random.choice(['Guarda', 'Soldado', 'Lenhador']);
-        else if (stats.sabedoria > 7) job = this.random.choice(['Alquimista', 'Ervanário']);
-        else if (stats.destreza > 7) job = this.random.choice(['Caçador', 'Lenhador']);
-        else job = this.random.choice(['Agricultor', 'Fazendeiro', 'Pescador', 'Minerador']);
+        // Commoners or others
+        if (stats.strength > 7) job = this.random.choice(['Guard', 'Soldier', 'Lumberjack']);
+        else if (stats.wisdom > 7) job = this.random.choice(['Alchemist', 'Herbalist']);
+        else if (stats.dexterity > 7) job = this.random.choice(['Hunter', 'Lumberjack']);
+        else job = this.random.choice(['Farmer', 'Rancher', 'Fisher', 'Miner']);
       }
-      
-      // Definir dinheiro inicial baseado na casta
+
+      // Define initial money based on caste
       let initialMoney = 0;
-      switch(familia.casta) {
-        case 'nobre': initialMoney = this.random.nextInt(300, 800); break;
-        case 'comerciante': initialMoney = this.random.nextInt(100, 400); break;
-        case 'artesao': initialMoney = this.random.nextInt(50, 150); break;
+      switch(family.caste) {
+        case 'noble': initialMoney = this.random.nextInt(300, 800); break;
+        case 'merchant': initialMoney = this.random.nextInt(100, 400); break;
+        case 'artisan': initialMoney = this.random.nextInt(50, 150); break;
         default: initialMoney = this.random.nextInt(5, 50); break;
       }
 
@@ -333,12 +333,12 @@ export class GameEngine {
 
       npcs.push({
         id: `npc-${i + 1}`,
-        name: `${firstName} ${familia.sobrenome}`, // Usa sobrenome da família
-        familiaId: familia.id,
-        casta: familia.casta,
-        reputacao: reputacao,
+        name: `${firstName} ${family.surname}`, // Use family surname
+        familyId: family.id,
+        caste: family.caste,
+        reputation: reputation,
         stats: stats,
-        talentos: [], // Futuramente implementar sorteio de talentos
+        talents: [], // Future talent selection system
         pos: { x, y },
         money: initialMoney,
         job: job,
@@ -439,7 +439,7 @@ export class GameEngine {
   start(): void {
     if (!this.state.simRunning) {
       this.state.simRunning = true;
-      this.addReportLog('Simulação iniciada.');
+      this.addReportLog('Simulation started.');
       this.notify();
     }
   }
@@ -450,7 +450,7 @@ export class GameEngine {
   stop(): void {
     if (this.state.simRunning) {
       this.state.simRunning = false;
-      this.addReportLog('Simulação pausada.');
+      this.addReportLog('Simulation paused.');
       this.notify();
     }
   }
@@ -612,7 +612,7 @@ export class GameEngine {
         );
         
         if (targetPOI) {
-          this.addReportLog(`${npc.name} chegou ao ${targetPOI.name}.`);
+          this.addReportLog(`${npc.name} arrived at ${targetPOI.name}.`);
         }
         
         npc.targetPos = undefined;
@@ -675,7 +675,7 @@ export class GameEngine {
     
     if (success) {
       this.addReportLog(
-        `${buyer.name} negociou ${amount} moedas com ${seller.name}.`
+        `${buyer.name} traded ${amount} coins with ${seller.name}.`
       );
       
       // Improve social relation through trade
@@ -690,84 +690,84 @@ export class GameEngine {
     | { intent: CraftIntent; process: CraftProcess; requiredTags: string[][]; optionalTags?: string[][] }
     | null {
     switch (job) {
-      case 'Ferreiro':
+      case 'Blacksmith':
         return {
           intent: this.random.next() > 0.6 ? 'weapon' : 'tool',
           process: 'forge',
           requiredTags: [['ore', 'metal'], ['wood', 'organic'], ['fuel']],
         };
-      case 'Artesão':
+      case 'Artisan':
         return {
           intent: this.random.next() > 0.55 ? 'tool' : 'material',
           process: this.random.next() > 0.5 ? 'cook' : 'refine',
           requiredTags: [['wood', 'organic', 'fiber'], ['wood', 'organic', 'fiber']],
           optionalTags: [['stone']],
         };
-      case 'Alfaiate':
+      case 'Tailor':
         return {
           intent: 'material',
           process: 'cook',
           requiredTags: [['fiber'], ['fiber']],
           optionalTags: [['organic']],
         };
-      case 'Construtor':
+      case 'Builder':
         return {
           intent: this.random.next() > 0.4 ? 'material' : 'tool',
           process: 'refine',
           requiredTags: [['stone'], ['wood', 'organic']],
           optionalTags: [['fuel']],
         };
-      case 'Tecelã':
+      case 'Weaver':
         return {
           intent: 'material',
           process: 'cook',
           requiredTags: [['fiber'], ['fiber', 'organic']],
           optionalTags: [['organic']],
         };
-      case 'Lenhador':
+      case 'Lumberjack':
         return {
           intent: 'material',
           process: 'refine',
           requiredTags: [['wood'], ['wood']],
           optionalTags: [['fuel']],
         };
-      case 'Agricultor':
+      case 'Farmer':
         return {
           intent: 'food',
           process: 'cook',
           requiredTags: [['food']],
           optionalTags: [['drink']],
         };
-      case 'Fazendeiro':
+      case 'Rancher':
         return {
           intent: this.random.next() > 0.5 ? 'food' : 'drink',
           process: this.random.next() > 0.4 ? 'cook' : 'brew',
           requiredTags: [['food', 'organic'], ['drink']],
           optionalTags: [['fiber', 'organic']],
         };
-      case 'Alquimista':
-      case 'Ervanário':
+      case 'Alchemist':
+      case 'Herbalist':
         return {
           intent: this.random.next() > 0.5 ? 'medicine' : 'drink',
           process: 'brew',
           requiredTags: [['organic'], ['balancing', 'stone']],
           optionalTags: [['ore', 'metal'], ['drink']],
         };
-      case 'Minerador':
+      case 'Miner':
         return {
           intent: 'material',
           process: 'refine',
           requiredTags: [['ore', 'stone'], ['stone']],
           optionalTags: [['fuel']],
         };
-      case 'Caçador':
+      case 'Hunter':
         return {
           intent: this.random.next() > 0.4 ? 'food' : 'material',
           process: 'cook',
           requiredTags: [['organic']],
           optionalTags: [['fiber'], ['drink']],
         };
-      case 'Pescador':
+      case 'Fisher':
         return {
           intent: 'food',
           process: 'cook',
@@ -862,7 +862,7 @@ export class GameEngine {
     stockRemove(stockpile, picked.id, 1);
     inventoryAdd(npc, picked.id, 1, this.indices);
     this.addReportLog(
-      `${npc.name} coletou ${picked.displayName ?? picked.name} do depósito local (${poiId}).`,
+      `${npc.name} collected ${picked.displayName ?? picked.name} from the local stockpile (${poiId}).`,
     );
   }
 
@@ -999,17 +999,17 @@ export class GameEngine {
 
     // Determine work location based on job
     let requiredPOI: POI | undefined;
-    if (npc.job === 'Minerador') {
+    if (npc.job === 'Miner') {
       requiredPOI = this.state.worldMap.getPOI('mine');
     } else if (
-      npc.job === 'Caçador' ||
-      npc.job === 'Pescador' ||
-      npc.job === 'Agricultor' ||
-      npc.job === 'Fazendeiro' ||
-      npc.job === 'Lenhador'
+      npc.job === 'Hunter' ||
+      npc.job === 'Fisher' ||
+      npc.job === 'Farmer' ||
+      npc.job === 'Rancher' ||
+      npc.job === 'Lumberjack'
     ) {
       requiredPOI = this.state.worldMap.getPOI('forest');
-    } else if (npc.job === 'Mercador') {
+    } else if (npc.job === 'Merchant') {
       requiredPOI = this.state.worldMap.getPOI('market');
     }
 
@@ -1163,12 +1163,12 @@ export class GameEngine {
           const success = transferGold(this.state, npc.id, 'city', foodCost, 'buy food');
 
           if (success) {
-            const purchasedFood = this.ensureProceduralItemId('alimento', (item) =>
+            const purchasedFood = this.ensureProceduralItemId('food', (item) =>
               consumableCatalog.includes(item),
             );
             inventoryAdd(npc, purchasedFood, 1, this.indices);
             this.addReportLog(
-              `${npc.name} comprou ${this.describeItem(purchasedFood)} por ${foodCost} moedas.`,
+              `${npc.name} bought ${this.describeItem(purchasedFood)} for ${foodCost} coins.`,
             );
 
             // Consume it immediately
@@ -1189,17 +1189,17 @@ export class GameEngine {
       }
     }
     if (!consumed) {
-      this.addReportLog(`${npc.name} não encontrou comida/bebida.`);
+      this.addReportLog(`${npc.name} could not find food or drink.`);
     }
   }
 
   private actionGuildEvent(): void {
     const events = [
-      'Um novo aventureiro chegou à guilda.',
-      'A guilda recebeu uma doação anônima.',
-      'Um rumor de tesouros distantes circula pela taverna.',
-      'O conselho da guilda se reuniu para discutir novos contratos.',
-      'Comerciantes locais reportam aumento nas vendas.',
+      'A new adventurer arrived at the guild.',
+      'The guild received an anonymous donation.',
+      'A rumor of distant treasures spreads through the tavern.',
+      'The guild council met to discuss new contracts.',
+      'Local merchants report increased sales.',
     ];
     const event = this.random.choice(events);
     this.addReportLog(event);
@@ -1220,9 +1220,9 @@ export class GameEngine {
       if (otherNPCs.length > 0) {
         const otherNPC = this.random.choice(otherNPCs);
         performSocialInteraction(this.state, npc.id, otherNPC.id, 'chat');
-        
+
         this.addReportLog(
-          `${npc.name} conversou com ${otherNPC.name} na taverna.`
+          `${npc.name} chatted with ${otherNPC.name} at the tavern.`
         );
         
         // Satisfy social and fun needs
@@ -1232,8 +1232,8 @@ export class GameEngine {
         satisfyNeed(otherNPC, 'fun', 8);
       } else {
         const encounters = [
-          `${npc.name} participou de uma festa na taverna.`,
-          `${npc.name} ouviu histórias de terras distantes.`,
+          `${npc.name} joined a party at the tavern.`,
+          `${npc.name} heard tales of distant lands.`,
         ];
         const encounter = this.random.choice(encounters);
         this.addReportLog(encounter);
@@ -1244,9 +1244,9 @@ export class GameEngine {
       }
     } else {
       const encounters = [
-        `${npc.name} encontrou uma moeda antiga no caminho.`,
-        `${npc.name} ajudou um viajante perdido.`,
-        `${npc.name} testemunhou um duelo na praça.`,
+        `${npc.name} found an old coin along the road.`,
+        `${npc.name} helped a lost traveler.`,
+        `${npc.name} witnessed a duel in the plaza.`,
       ];
       const encounter = this.random.choice(encounters);
       this.addReportLog(encounter);
@@ -1290,22 +1290,22 @@ export class GameEngine {
     const materialScarcity = this.computeLocalScarcity(anchorPoi, 'material');
 
     if (foodScarcity > 0.7) {
-      this.addReportLog('Rumores de escassez de alimentos afetam o mercado local.');
+      this.addReportLog('Food scarcity rumors impact the local market.');
     } else if (foodScarcity < 0.2) {
-      this.addReportLog('A abundância de comida derrubou os preços esta semana.');
+      this.addReportLog('An abundance of food pushed prices down this week.');
     } else if (drinkScarcity > 0.7) {
-      this.addReportLog('Água e bebidas estão escassas e os preços subiram.');
+      this.addReportLog('Water and drinks are scarce and prices have risen.');
     } else if (toolScarcity > 0.7) {
-      this.addReportLog('A demanda por ferramentas aumentou com poucos estoques locais.');
+      this.addReportLog('Tool demand increased while local stocks remain low.');
     } else if (materialScarcity < 0.2) {
-      this.addReportLog('Materiais refinados estão em excesso; preços em queda.');
+      this.addReportLog('Refined materials are oversupplied; prices are falling.');
     } else {
       const changes = [
-        'Os preços dos alimentos subiram levemente.',
-        'O mercado de armas está aquecido esta semana.',
-        'Poções estão mais baratas devido ao excesso de estoque.',
-        'A demanda por ferramentas aumentou.',
-        'Rumores de escassez afetam o mercado.',
+        'Food prices ticked up slightly.',
+        'The weapons market is hot this week.',
+        'Potions are cheaper due to oversupply.',
+        'Demand for tools increased.',
+        'Scarcity rumors ripple through the market.',
       ];
       const change = this.random.choice(changes);
       this.addReportLog(change);
@@ -1400,7 +1400,7 @@ export class GameEngine {
     }
 
     this.addReportLog(
-      `Missão "${quest.title}" concluída! Recompensa: ${quest.reward} moedas.`
+      `Quest "${quest.title}" completed! Reward: ${quest.reward} coins.`
     );
     this.notify();
     return true;
