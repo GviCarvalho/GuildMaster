@@ -5,7 +5,7 @@
 import type {
   GameState,
   Player,
-Quest,
+  Quest,
   NPC,
   ReportLogEntry,
   Familia,
@@ -696,12 +696,24 @@ export class GameEngine {
           requiredTags: [['ore', 'metal'], ['wood', 'organic'], ['fuel']],
         };
       case 'Artesão':
+        return {
+          intent: this.random.next() > 0.55 ? 'tool' : 'material',
+          process: this.random.next() > 0.5 ? 'cook' : 'refine',
+          requiredTags: [['wood', 'organic'], ['wood', 'organic']],
+          optionalTags: [['stone']],
+        };
       case 'Alfaiate':
+        return {
+          intent: 'material',
+          process: 'cook',
+          requiredTags: [['organic'], ['organic']],
+          optionalTags: [['wood']],
+        };
       case 'Construtor':
         return {
-          intent: this.random.next() > 0.5 ? 'tool' : 'material',
-          process: this.random.next() > 0.4 ? 'refine' : 'cook',
-          requiredTags: [['wood', 'organic'], ['stone']],
+          intent: this.random.next() > 0.4 ? 'material' : 'tool',
+          process: 'refine',
+          requiredTags: [['stone'], ['wood', 'organic']],
           optionalTags: [['fuel']],
         };
       case 'Agricultor':
@@ -748,14 +760,18 @@ export class GameEngine {
       (item) => item.tags?.some((tag) => tagOptions.includes(tag)) && !usedIds.includes(item.id),
     );
 
-    const invPool = matches.filter((item) =>
+    const avoidOre = tagOptions.includes('stone') && !tagOptions.includes('ore');
+    const prioritized = avoidOre ? matches.filter((item) => !item.tags?.includes('ore')) : matches;
+    const pool = prioritized.length > 0 ? prioritized : matches;
+
+    const invPool = pool.filter((item) =>
       inventoryHas(npc, item.id, 1 + this.countSelection(selections, item.id, 'inventory')),
     );
     if (invPool.length > 0) {
       return { definition: this.random.choice(invPool), source: 'inventory' };
     }
 
-    const stockPool = matches.filter((item) =>
+    const stockPool = pool.filter((item) =>
       stockHas(stockpile, item.id, 1 + this.countSelection(selections, item.id, 'stockpile')),
     );
     if (stockPool.length > 0) {
