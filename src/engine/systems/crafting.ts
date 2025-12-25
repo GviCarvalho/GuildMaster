@@ -54,9 +54,9 @@ export function craftOnce(
   const combined = combineMixes(inputs, weights);
   // TODO: Replace FORGED/REFINED markers with richer reaction pathways (ore -> ingot -> tool modular).
   if (process === 'forge') {
-    mixAdd(combined, 'FORGED', 0.05);
+    mixAdd(combined, 'FORGED', 0.1);
   } else if (process === 'refine') {
-    mixAdd(combined, 'REFINED', 0.05);
+    mixAdd(combined, 'REFINED', 0.1);
   }
   const options = processOptions(process);
   const variation = typeof random?.choice === 'function' && 'next' in random ? random.next!() : Math.random();

@@ -54,8 +54,9 @@ export function analyzeMix(mix: Mix): {
   const metal = hasRelevant(normalized, ([k, v]) => ['IRON', 'FE', 'CU', 'SN', 'AU'].includes(k) && v > TAG_THRESHOLD);
   const wood = hasRelevant(normalized, ([k, v]) => ['FIBER', 'RESIN'].includes(k) && v > TAG_THRESHOLD);
   const stone = hasRelevant(normalized, ([k, v]) => ['SILICA', 'MINERAL_DUST'].includes(k) && v > TAG_THRESHOLD);
+  const hydration = proportion(normalized, ['H2O']);
   const food = hasRelevant(normalized, ([k, v]) => ['GLU', 'FRUCT', 'UMAMI', 'FAT', 'PROTEIN'].includes(k) && v > TAG_THRESHOLD);
-  const drink = hasRelevant(normalized, ([k, v]) => k === 'H2O' && v > TAG_THRESHOLD);
+  const drink = hydration > 0.2;
   const fuel = hasRelevant(normalized, ([k, v]) => ['CARBON', 'COAL', 'ORE_COAL'].includes(k) && v > TAG_THRESHOLD);
   const reactive = hasRelevant(normalized, ([k, v]) =>
     ['OXIDIZER', 'PH_ACID', 'PH_BASE', 'CHELATOR'].includes(k) && v > TAG_THRESHOLD,
@@ -84,7 +85,6 @@ export function analyzeMix(mix: Mix): {
     if (!tags.includes('material')) tags.push('material');
   }
 
-  const hydration = proportion(normalized, ['H2O']);
   const calories = proportion(normalized, ['GLU', 'FRUCT', 'FAT', 'PROTEIN']);
   const bitterness = proportion(normalized, ['AMARGO']);
   const umami = proportion(normalized, ['UMAMI']);

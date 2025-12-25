@@ -1280,7 +1280,10 @@ export class GameEngine {
   }
 
   private isEdible(item: ItemDefinition): boolean {
-    return item.tags?.some((tag) => tag === 'food' || tag === 'drink') ?? false;
+    if (!item.tags) return false;
+    const isConsumable = item.tags.some((tag) => tag === 'food' || tag === 'drink');
+    const clearlyInedible = item.tags.includes('ore') || item.tags.includes('metal') || item.tags.includes('stone');
+    return isConsumable && !clearlyInedible;
   }
 
   private describeItem(itemId: ItemId): string {
