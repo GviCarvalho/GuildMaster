@@ -170,12 +170,17 @@ function deriveMacroStates(npc: DnaNpc, dt: number): void {
   const inflam = mixGet(npc.body, 'INFLAM');
   const ser = mixGet(npc.body, 'SER');
   const water = mixGet(npc.body, 'H2O');
+  const stressChems = mixGet(npc.body, 'STRESS') + mixGet(npc.body, 'CORT') + mixGet(npc.body, 'ADREN');
+  const socialBond = mixGet(npc.body, 'SOCIAL_BOND');
+  const dopa = mixGet(npc.body, 'DOPA');
 
   npc.energy = clamp((npc.energy ?? 0.5) + (0.05 * glu - 0.03 * inflam) * dt, 0, 1);
   npc.pain = clamp((npc.pain ?? 0) + 0.06 * inflam * dt, 0, 1);
-  npc.mood = clamp((npc.mood ?? 0.5) + (0.04 * ser - 0.02 * inflam) * dt, 0, 1);
+  npc.mood = clamp((npc.mood ?? 0.5) + (0.04 * ser - 0.02 * inflam - 0.02 * stressChems) * dt, 0, 1);
+  npc.focus = clamp((npc.focus ?? 0.5) + (0.04 * dopa - 0.03 * stressChems) * dt, 0, 1);
   npc.hunger = clamp((npc.hunger ?? 0.5) + (0.03 - 0.06 * glu) * dt, 0, 1);
   npc.thirst = clamp((npc.thirst ?? 0.5) + (0.03 - 0.08 * water) * dt, 0, 1);
+  npc.social = clamp((npc.social ?? 0.5) + (0.04 * socialBond - 0.02 * stressChems) * dt, 0, 1);
 }
 
 export function runReactor(
@@ -348,6 +353,8 @@ export const REACTIONS_LIBRARY = {
   REACTIONS_BODY,
   REACTIONS_SOCIAL,
 };
+
+export type ReactionLibrary = typeof REACTIONS_LIBRARY;
 
 // Backward compatibility export; kept for tests/demos.
 export const SAMPLE_REACTIONS: ReactionRule[] = [...REACTIONS_BODY];
