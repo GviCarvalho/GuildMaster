@@ -3,6 +3,7 @@
  */
 
 import type { WorldMap, Vec2 } from './world/map';
+import type { MacroSnapshot, Mix } from './dna';
 
 // Phase 2: Type aliases for indices
 export type EntityId = string;
@@ -75,7 +76,15 @@ export interface NPC {
   
   // Phase 2: Inventory for trading
   inventory?: Inventory;
-  
+
+  // Chemistry/DNA sandbox state
+  chemistry?: {
+    body: Mix;
+    stomach?: Mix;
+    blood?: Mix;
+    lastMacro?: MacroSnapshot;
+  };
+
   // Phase 3: Needs system (0-100, clamped)
   needs?: {
     hunger: number;

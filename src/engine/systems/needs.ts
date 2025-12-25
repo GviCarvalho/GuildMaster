@@ -6,6 +6,7 @@
  */
 
 import type { NPC } from '../types';
+import type { MacroSnapshot } from '../dna';
 
 export interface Needs {
   hunger: number;
@@ -114,6 +115,18 @@ export function applyNeedDecay(npc: NPC, hungerDecay: number, socialDecay: numbe
  */
 export function satisfyNeed(npc: NPC, needType: keyof Needs, amount: number): void {
   modifyNeed(npc, needType, amount);
+}
+
+/**
+ * Synchronize need meters from a chemistry-derived macro snapshot (0..1 signals).
+ */
+export function syncNeedsFromMacro(npc: NPC, macro: MacroSnapshot): void {
+  const needs = ensureNeeds(npc);
+  const hungerSatisfaction = 1 - macro.hungerSignal; // hungerSignal high => low satisfaction
+  const socialSatisfaction = clampNeed((0.5 * (1 - macro.stress) + 0.5 * macro.mood) * 100);
+  needs.hunger = clampNeed(hungerSatisfaction * 100);
+  needs.fun = clampNeed(macro.mood * 100);
+  needs.social = socialSatisfaction;
 }
 
 /**
