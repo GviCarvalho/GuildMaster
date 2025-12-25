@@ -1,11 +1,3 @@
-/**
- * Lightweight chemistry/DNA sandbox inspired by the design discussion.
- *
- * Each item/NPC organ can be represented as a Mix (dictionary of substances -> quantity).
- * Reactions consume/produce substances over simulation ticks and can be gated by conditions
- * such as temperature, pH, catalysts/enzymes, or arbitrary world tags.
- */
-
 export type Substance = string;
 export type Mix = Record<Substance, number>;
 
@@ -99,7 +91,6 @@ export class ReactionRule {
   }
 }
 
-// Helpers for common conditions
 export function temperatureWindow(lo: number, hi: number): Condition {
   return (ctx) => (ctx.temperature !== undefined && ctx.temperature >= lo && ctx.temperature <= hi ? 1 : 0);
 }
@@ -114,7 +105,6 @@ export function catalystBoost(catalyst: Substance, strength: number): Condition 
 export function tagThreshold(tag: string, threshold: number, slope = 10): Condition {
   return (ctx) => {
     const val = ctx.tags?.[tag] ?? 0;
-    // Soft transition around the threshold (sigmoid-like)
     return 1 / (1 + Math.exp(-slope * (val - threshold)));
   };
 }
@@ -258,9 +248,8 @@ export function deriveMacroSnapshot(body: Mix): MacroSnapshot {
   };
 }
 
-// Example world substances and reaction libraries to seed the sandbox with an actual “physics”.
 export const SUBSTANCES: Substance[] = [
-  // Base environment
+
   'H2O',
   'O2',
   'CO2',
@@ -274,7 +263,6 @@ export const SUBSTANCES: Substance[] = [
   'D',
   'Y',
 
-  // Organic/food
   'GLU',
   'FRUCT',
   'FIBER',
@@ -282,7 +270,6 @@ export const SUBSTANCES: Substance[] = [
   'DOCE',
   'UMAMI',
 
-  // Body chemistry
   'ATP',
   'TOX_A',
   'ANT_B',
@@ -298,7 +285,6 @@ export const SUBSTANCES: Substance[] = [
   'ENZ_METAL',
   'SOCIAL_BOND',
 
-  // Crafting/forja
   'ORE_FE',
   'ORE_CU',
   'ORE_SN',
@@ -425,11 +411,6 @@ export const REACTIONS_LIBRARY = {
 };
 
 export type ReactionLibrary = typeof REACTIONS_LIBRARY;
-
-/**
- * Convenience helper to iterate over every reaction in the library.
- * Useful for running batch simulations without remembering each subset.
- */
 export function flattenReactions(library: ReactionLibrary): ReactionRule[] {
   return [...library.REACTIONS_WORLD, ...library.REACTIONS_BODY, ...library.REACTIONS_SOCIAL];
 }
