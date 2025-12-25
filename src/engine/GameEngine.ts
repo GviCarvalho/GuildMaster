@@ -973,6 +973,10 @@ export class GameEngine {
   }
 
   private isEdible(item: ItemDefinition): boolean {
+    if (item.tags?.some((tag) => tag === 'food' || tag === 'drink')) {
+      return true;
+    }
+
     return Object.keys(item.mix).some((k) =>
       ['GLU', 'FRUCT', 'UMAMI', 'H2O'].some((edible) => k === edible),
     );
@@ -999,6 +1003,7 @@ export class GameEngine {
     const carrier = this.random.choice(this.state.npcs);
     inventoryAdd(carrier, newItemId, 1, this.indices);
 
+    // TODO: NPC learning could later look at tags/traits/signature to decide experiments or trades.
     this.addReportLog(
       `${carrier.name} adquiriu um novo item procedimental: ${this.describeItem(newItemId)}.`,
     );

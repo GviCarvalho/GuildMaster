@@ -5,7 +5,7 @@
 export type Substance = string;
 export type Mix = Record<Substance, number>;
 
-const EPS = 1e-9;
+export const EPS = 1e-9;
 
 /* =========================
    Mix helpers

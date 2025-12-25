@@ -1,11 +1,17 @@
 import type { Mix } from '../dna';
 import { mixMerge } from '../dna';
+import { applyAnalysisToItem } from './itemAnalyzer';
 import type { ItemId } from '../types';
 
 export interface ItemDefinition {
   id: ItemId;
   name: string;
   mix: Mix;
+  tags?: string[];
+  traits?: Record<string, number>;
+  canonicalName?: string;
+  displayName?: string;
+  signature?: string;
 }
 
 /**
@@ -16,11 +22,15 @@ export class ItemRegistry {
   private counter = 0;
 
   constructor(seedItems?: ItemDefinition[]) {
-    seedItems?.forEach((item) => this.items.set(item.id, { ...item, mix: { ...item.mix } }));
+    seedItems?.forEach((item) => {
+      const analyzed = applyAnalysisToItem(item);
+      this.items.set(analyzed.id, { ...analyzed, mix: { ...analyzed.mix } });
+    });
   }
 
   register(id: ItemId, name: string, mix: Mix): ItemId {
-    this.items.set(id, { id, name, mix: { ...mix } });
+    const analyzed = applyAnalysisToItem({ id, name, mix });
+    this.items.set(id, { ...analyzed, mix: { ...analyzed.mix } });
     return id;
   }
 
