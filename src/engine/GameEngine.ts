@@ -1108,7 +1108,7 @@ export class GameEngine {
       }
 
       this.addReportLog(
-        `${npc.name} trabalhou como ${npc.job} e produziu ${craftedDef.displayName ?? craftedDef.name}, armazenando no POI ${poiId}.`,
+        `${npc.name} worked as a ${npc.job} and produced ${craftedDef.displayName ?? craftedDef.name}, storing it at ${poiId}.`,
       );
     }
 
@@ -1134,7 +1134,7 @@ export class GameEngine {
 
     if (ownedConsumable) {
       const isDrink = ownedConsumable.tags?.includes('drink');
-      const verb = isDrink ? 'bebeu' : 'comeu';
+      const verb = isDrink ? 'drank' : 'ate';
       inventoryRemove(npc, ownedConsumable.id, 1, this.indices);
       satisfyNeed(npc, 'hunger', 30);
       this.addReportLog(`${npc.name} ${verb} ${this.describeItem(ownedConsumable.id)}.`);
@@ -1145,10 +1145,10 @@ export class GameEngine {
       if (availableInStock.length > 0) {
         const picked = this.random.choice(availableInStock);
         const isDrink = picked.tags?.includes('drink');
-        const verb = isDrink ? 'bebeu' : 'comeu';
+        const verb = isDrink ? 'drank' : 'ate';
         stockRemove(stockpile, picked.id, 1);
         satisfyNeed(npc, 'hunger', 25);
-        this.addReportLog(`${npc.name} ${verb} ${this.describeItem(picked.id)} no ${poiId}.`);
+        this.addReportLog(`${npc.name} ${verb} ${this.describeItem(picked.id)} at ${poiId}.`);
         consumed = true;
       } else {
         const marketPOI = this.state.worldMap.getPOI('market');
@@ -1360,7 +1360,7 @@ export class GameEngine {
 
     stockAdd(destStock, picked.id, transferQty);
     this.addReportLog(
-      `Um comerciante levou ${transferQty}x ${picked.displayName ?? picked.name} de ${chosen.from.name} para ${chosen.to.name}.`,
+      `A trader carried ${transferQty}x ${picked.displayName ?? picked.name} from ${chosen.from.name} to ${chosen.to.name}.`,
     );
   }
 
@@ -1424,7 +1424,7 @@ export class GameEngine {
       while (this.state.timeOfDaySec >= SECONDS_PER_DAY) {
         this.state.timeOfDaySec -= SECONDS_PER_DAY;
         this.state.day++;
-        this.addReportLog(`--- Dia ${this.state.day} ---`);
+        this.addReportLog(`--- Day ${this.state.day} ---`);
       }
 
       // Notify on time changes (every second) to update the clock display
@@ -1554,7 +1554,7 @@ export class GameEngine {
 
     // TODO: NPC learning could later look at tags/traits/signature to decide experiments or trades.
     this.addReportLog(
-      `${carrier.name} adquiriu um novo item procedimental: ${this.describeItem(newItemId)}.`,
+      `${carrier.name} acquired a new procedural item: ${this.describeItem(newItemId)}.`,
     );
   }
 
