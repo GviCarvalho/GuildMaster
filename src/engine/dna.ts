@@ -5,7 +5,7 @@
 export type Substance = string;
 export type Mix = Record<Substance, number>;
 
-const EPS = 1e-9;
+export const EPS = 1e-9;
 
 /* =========================
    Mix helpers
@@ -184,24 +184,50 @@ export function tickMetabolism(npc: DnaNpc, reactions: ReactionRule[], dt: numbe
 
 function deriveMacroStates(npc: DnaNpc, dt: number): void {
   const glu = mixGet(npc.body, 'GLU');
-  const inflam = mixGet(npc.body, 'INFLAM');
+  const atp = mixGet(npc.body, 'ATP');
   const ser = mixGet(npc.body, 'SER');
   const water = mixGet(npc.body, 'H2O');
+  const o2 = mixGet(npc.body, 'O2');
+
+  const oxidativeStress = mixGet(npc.body, 'OX_STRESS') + 0.5 * mixGet(npc.body, 'OXIDIZER');
+  const hydrationLoad = Math.max(0, 0.3 - water) + mixGet(npc.body, 'DEHYDRATION_SIGNAL');
+  const oxygenDebt = Math.max(0, 0.3 - o2);
+  const phStress = Math.max(
+    0,
+    mixGet(npc.body, 'PH_ACID') + mixGet(npc.body, 'PH_BASE') + mixGet(npc.body, 'PH_SHIFT') - mixGet(npc.body, 'PH_BUFFER'),
+  );
+  const chelationStress = mixGet(npc.body, 'CHELATED_METAL');
 
   const stressChems =
     mixGet(npc.body, 'STRESS') +
     mixGet(npc.body, 'CORT') +
-    mixGet(npc.body, 'ADREN');
+    mixGet(npc.body, 'ADREN') +
+    oxidativeStress +
+    phStress +
+    hydrationLoad +
+    chelationStress;
 
   const socialBond = mixGet(npc.body, 'SOCIAL_BOND');
   const dopa = mixGet(npc.body, 'DOPA');
 
-  npc.energy = clamp((npc.energy ?? 0.5) + (0.05 * glu - 0.03 * inflam) * dt, 0, 1);
-  npc.pain = clamp((npc.pain ?? 0) + 0.06 * inflam * dt, 0, 1);
-  npc.mood = clamp((npc.mood ?? 0.5) + (0.04 * ser - 0.02 * inflam - 0.02 * stressChems) * dt, 0, 1);
+  npc.energy = clamp(
+    (npc.energy ?? 0.5) + (0.05 * atp + 0.02 * glu - 0.04 * oxygenDebt - 0.04 * phStress - 0.03 * hydrationLoad) * dt,
+    0,
+    1,
+  );
+  npc.pain = clamp(
+    (npc.pain ?? 0) + (0.05 * oxidativeStress + 0.04 * phStress + 0.04 * hydrationLoad + 0.02 * chelationStress) * dt,
+    0,
+    1,
+  );
+  npc.mood = clamp(
+    (npc.mood ?? 0.5) + (0.04 * ser - 0.02 * stressChems - 0.03 * phStress - 0.02 * hydrationLoad) * dt,
+    0,
+    1,
+  );
   npc.focus = clamp((npc.focus ?? 0.5) + (0.04 * dopa - 0.03 * stressChems) * dt, 0, 1);
-  npc.hunger = clamp((npc.hunger ?? 0.5) + (0.03 - 0.06 * glu) * dt, 0, 1);
-  npc.thirst = clamp((npc.thirst ?? 0.5) + (0.03 - 0.08 * water) * dt, 0, 1);
+  npc.hunger = clamp((npc.hunger ?? 0.5) + (0.03 - 0.05 * glu - 0.04 * atp) * dt, 0, 1);
+  npc.thirst = clamp((npc.thirst ?? 0.5) + (0.03 + 0.05 * hydrationLoad - 0.08 * water) * dt, 0, 1);
   npc.social = clamp((npc.social ?? 0.5) + (0.04 * socialBond - 0.02 * stressChems) * dt, 0, 1);
 }
 
@@ -249,22 +275,37 @@ export interface MacroSnapshot {
 
 export function deriveMacroSnapshot(body: Mix): MacroSnapshot {
   const glu = mixGet(body, 'GLU');
-  const inflam = mixGet(body, 'INFLAM');
+  const atp = mixGet(body, 'ATP');
   const ser = mixGet(body, 'SER');
   const water = mixGet(body, 'H2O');
+  const o2 = mixGet(body, 'O2');
+
+  const oxidativeStress = mixGet(body, 'OX_STRESS') + 0.5 * mixGet(body, 'OXIDIZER');
+  const hydrationLoad = Math.max(0, 0.3 - water) + mixGet(body, 'DEHYDRATION_SIGNAL');
+  const oxygenDebt = Math.max(0, 0.3 - o2);
+  const phStress = Math.max(
+    0,
+    mixGet(body, 'PH_ACID') + mixGet(body, 'PH_BASE') + mixGet(body, 'PH_SHIFT') - mixGet(body, 'PH_BUFFER'),
+  );
+  const chelationStress = mixGet(body, 'CHELATED_METAL');
+
   const stressChems =
     mixGet(body, 'STRESS') +
     mixGet(body, 'CORT') +
-    mixGet(body, 'ADREN');
+    mixGet(body, 'ADREN') +
+    oxidativeStress +
+    phStress +
+    hydrationLoad +
+    chelationStress;
   const dopa = mixGet(body, 'DOPA');
 
   return {
-    energy: clamp(0.5 + (0.05 * glu - 0.03 * inflam), 0, 1),
-    pain: clamp(0.06 * inflam, 0, 1),
-    mood: clamp(0.5 + (0.04 * ser - 0.02 * inflam - 0.02 * stressChems), 0, 1),
+    energy: clamp(0.5 + (0.05 * atp + 0.02 * glu - 0.04 * oxygenDebt - 0.04 * phStress - 0.03 * hydrationLoad), 0, 1),
+    pain: clamp(0.05 * oxidativeStress + 0.04 * phStress + 0.04 * hydrationLoad + 0.02 * chelationStress, 0, 1),
+    mood: clamp(0.5 + (0.04 * ser - 0.02 * stressChems - 0.03 * phStress - 0.02 * hydrationLoad), 0, 1),
     focus: clamp(0.5 + (0.04 * dopa - 0.03 * stressChems), 0, 1),
-    hungerSignal: clamp(0.5 + (0.03 - 0.06 * glu), 0, 1),
-    thirstSignal: clamp(0.5 + (0.03 - 0.08 * water), 0, 1),
+    hungerSignal: clamp(0.5 + (0.03 - 0.05 * glu - 0.04 * atp), 0, 1),
+    thirstSignal: clamp(0.5 + (0.03 + 0.05 * hydrationLoad - 0.08 * water), 0, 1),
     stress: clamp(stressChems, 0, 1),
   };
 }
@@ -274,10 +315,76 @@ export function deriveMacroSnapshot(body: Mix): MacroSnapshot {
 ========================= */
 
 export const SUBSTANCES: Substance[] = [
-  'H2O','O2','CO2','N2','IRON','CARBON','SILICA','SALT','MINERAL_DUST','HUMIDADE','D','Y',
-  'GLU','FRUCT','FIBER','AMARGO','DOCE','UMAMI',
-  'ATP','TOX_A','ANT_B','INFLAM','SER','DOPA','CORT','ADREN','STRESS','TEMP','PH','ENZ_X','ENZ_METAL','SOCIAL_BOND',
-  'ORE_FE','ORE_CU','ORE_SN','ORE_COAL','PIG_IRON','BRONZE','STEEL','SLAG',
+  // Atmosphere and basics
+  'H2O',
+  'O2',
+  'CO2',
+  'N2',
+  'TEMP',
+  'PH',
+  'HUMIDADE',
+  'D',
+  'Y',
+
+  // Homeostasis helpers
+  'PH_BUFFER',
+  'PH_ACID',
+  'PH_BASE',
+  'PH_SHIFT',
+  'OXIDIZER',
+  'OX_STRESS',
+  'CHELATOR',
+  'CHELATED_METAL',
+  'DEHYDRATION_SIGNAL',
+
+  // Minerals and geology
+  'SILICA',
+  'MINERAL_DUST',
+  'SALT',
+  'CLAY',
+  'LIMESTONE',
+  'ASH',
+
+  // Metals and ores
+  'IRON',
+  'CARBON',
+  'ORE_FE',
+  'ORE_CU',
+  'ORE_SN',
+  'ORE_COAL',
+  'ORE_AU',
+  'PIG_IRON',
+  'BRONZE',
+  'STEEL',
+  'SLAG',
+
+  // Fuels
+  'COAL',
+  'CHAR',
+  'OIL',
+
+  // Biological basics
+  'GLU',
+  'FRUCT',
+  'FIBER',
+  'RESIN',
+  'FAT',
+  'PROTEIN',
+  'AMARGO',
+  'DOCE',
+  'UMAMI',
+  'BIO_MASS',
+
+  // Signaling and metabolism
+  'ATP',
+  'SER',
+  'DOPA',
+  'CORT',
+  'ADREN',
+  'STRESS',
+  'SOCIAL_BOND',
+  'ENZ_X',
+  'ENZ_METAL',
 ];
 
 export const REACTIONS_WORLD: ReactionRule[] = [
@@ -293,9 +400,14 @@ export const REACTIONS_WORLD: ReactionRule[] = [
 export const REACTIONS_BODY: ReactionRule[] = [
   new ReactionRule({ inputs: { GLU: 1, O2: 1 }, outputs: { ATP: 1, CO2: 1 }, rate: 0.2 }),
   new ReactionRule({ inputs: { FRUCT: 1, O2: 1 }, outputs: { ATP: 0.8, CO2: 1 }, rate: 0.18 }),
-  new ReactionRule({ inputs: { ATP: 1 }, outputs: {}, rate: 0.1 }),
-  new ReactionRule({ inputs: { TOX_A: 1 }, outputs: { INFLAM: 1 }, rate: 0.15 }),
-  new ReactionRule({ inputs: { ANT_B: 1, TOX_A: 1 }, outputs: {}, rate: 0.5 }),
+  new ReactionRule({ inputs: { ATP: 1 }, outputs: { TEMP: 0.02 }, rate: 0.1 }),
+  new ReactionRule({ inputs: { ATP: 1, OXIDIZER: 0.4 }, outputs: { OX_STRESS: 0.6, CO2: 0.4 }, rate: 0.12 }),
+  new ReactionRule({ inputs: { IRON: 0.3, CHELATOR: 0.4 }, outputs: { CHELATED_METAL: 0.6 }, rate: 0.08 }),
+  new ReactionRule({ inputs: { H2O: 1, SALT: 0.4 }, outputs: { DEHYDRATION_SIGNAL: 0.6 }, rate: 0.1 }),
+  new ReactionRule({ inputs: { PH: 0.1, PH_ACID: 0.5 }, outputs: { PH_SHIFT: 0.5 }, rate: 0.1 }),
+  new ReactionRule({ inputs: { PH: 0.1, PH_BASE: 0.5 }, outputs: { PH_SHIFT: 0.5 }, rate: 0.1 }),
+  new ReactionRule({ inputs: { PH_SHIFT: 0.5, PH_BUFFER: 0.5 }, outputs: {}, rate: 0.6 }),
+  new ReactionRule({ inputs: { OXIDIZER: 0.4, PH_BUFFER: 0.4 }, outputs: { OX_STRESS: 0.2 }, rate: 0.2 }),
 ];
 
 export const REACTIONS_SOCIAL: ReactionRule[] = [

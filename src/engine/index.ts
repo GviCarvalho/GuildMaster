@@ -39,4 +39,5 @@ export {
   type ReactionLibrary,
 } from './dna';
   export { ensureChemistry, tickNpcChemistry, type ChemistryState } from './systems/chemistry';
+  export { simulateIngestion, type IngestionSimulationResult } from './systems/chemistryEvaluation';
   export { ItemRegistry, createSeedItemRegistry } from './world/items';
