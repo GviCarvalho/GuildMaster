@@ -656,9 +656,9 @@ export class GameEngine {
       case 'Alfaiate':
       case 'Construtor':
         return {
-          intent: this.random.next() > 0.5 ? 'material' : 'tool',
-          process: this.random.next() > 0.5 ? 'refine' : 'forge',
-          requiredTags: [['wood', 'organic'], ['stone', 'ore']],
+          intent: this.random.next() > 0.5 ? 'tool' : 'material',
+          process: this.random.next() > 0.4 ? 'refine' : 'cook',
+          requiredTags: [['wood', 'organic'], ['stone']],
           optionalTags: [['fuel']],
         };
       case 'Agricultor':
@@ -956,7 +956,11 @@ export class GameEngine {
       flattenReactions(REACTIONS_LIBRARY),
       inputs,
       profile.process,
-      `${profile.intent} ${profile.process}`,
+      profile.process === 'forge'
+        ? 'Forge product'
+        : profile.process === 'refine'
+          ? 'Refined material'
+          : `${profile.intent} ${profile.process}`,
       weights,
     );
 
@@ -989,13 +993,17 @@ export class GameEngine {
 
     const npc = this.random.choice(this.state.npcs);
 
-    const edibleCatalog = this.itemRegistry.list().filter((item) => this.isEdible(item));
-    const ownedFood = edibleCatalog.find((item) => inventoryHas(npc, item.id, 1));
+    const consumableCatalog = this.itemRegistry.list().filter((item) => this.isEdible(item));
+    let consumed = false;
+    const ownedConsumable = consumableCatalog.find((item) => inventoryHas(npc, item.id, 1));
 
-    if (ownedFood) {
-      inventoryRemove(npc, ownedFood.id, 1, this.indices);
+    if (ownedConsumable) {
+      const isDrink = ownedConsumable.tags?.includes('drink');
+      const verb = isDrink ? 'bebeu' : 'comeu';
+      inventoryRemove(npc, ownedConsumable.id, 1, this.indices);
       satisfyNeed(npc, 'hunger', 30);
-      this.addReportLog(`${npc.name} comeu ${this.describeItem(ownedFood.id)}.`);
+      this.addReportLog(`${npc.name} ${verb} ${this.describeItem(ownedConsumable.id)}.`);
+      consumed = true;
     } else {
       const marketPOI = this.state.worldMap.getPOI('market');
 
@@ -1008,7 +1016,7 @@ export class GameEngine {
 
         if (success) {
           const purchasedFood = this.ensureProceduralItemId('alimento', (item) =>
-            edibleCatalog.includes(item),
+            consumableCatalog.includes(item),
           );
           inventoryAdd(npc, purchasedFood, 1, this.indices);
           this.addReportLog(
@@ -1018,6 +1026,7 @@ export class GameEngine {
           // Consume it immediately
           inventoryRemove(npc, purchasedFood, 1, this.indices);
           satisfyNeed(npc, 'hunger', 25);
+          consumed = true;
         }
       } else if (marketPOI && !npc.targetPos) {
         // Move to market to buy food
@@ -1029,6 +1038,9 @@ export class GameEngine {
           npc.targetPos = undefined;
         }
       }
+    }
+    if (!consumed) {
+      this.addReportLog(`${npc.name} não encontrou comida/bebida.`);
     }
   }
 
@@ -1268,13 +1280,7 @@ export class GameEngine {
   }
 
   private isEdible(item: ItemDefinition): boolean {
-    if (item.tags?.some((tag) => tag === 'food' || tag === 'drink')) {
-      return true;
-    }
-
-    return Object.keys(item.mix).some((k) =>
-      ['GLU', 'FRUCT', 'UMAMI', 'H2O'].some((edible) => k === edible),
-    );
+    return item.tags?.some((tag) => tag === 'food' || tag === 'drink') ?? false;
   }
 
   private describeItem(itemId: ItemId): string {

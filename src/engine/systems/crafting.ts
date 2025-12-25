@@ -1,4 +1,4 @@
-import { mixMerge, mixScale, runReactor, type Mix, type ReactionRule } from '../dna';
+import { mixAdd, mixMerge, mixScale, runReactor, type Mix, type ReactionRule } from '../dna';
 import type { CraftIntent, CraftProcess } from '../types';
 import type { ItemDefinition, ItemRegistry } from '../world/items';
 
@@ -52,6 +52,12 @@ export function craftOnce(
   weights?: number[],
 ): string {
   const combined = combineMixes(inputs, weights);
+  // TODO: Replace FORGED/REFINED markers with richer reaction pathways (ore -> ingot -> tool modular).
+  if (process === 'forge') {
+    mixAdd(combined, 'FORGED', 0.05);
+  } else if (process === 'refine') {
+    mixAdd(combined, 'REFINED', 0.05);
+  }
   const options = processOptions(process);
   const variation = typeof random?.choice === 'function' && 'next' in random ? random.next!() : Math.random();
   const reactedMix = runReactor(
