@@ -1,7 +1,15 @@
+/**
+ * Lightweight chemistry / DNA sandbox
+ */
+
 export type Substance = string;
 export type Mix = Record<Substance, number>;
 
 const EPS = 1e-9;
+
+/* =========================
+   Mix helpers
+========================= */
 
 export function mixGet(mix: Mix, key: Substance): number {
   return mix[key] ?? 0;
@@ -42,6 +50,10 @@ export function clamp(x: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, x));
 }
 
+/* =========================
+   Reaction system
+========================= */
+
 export interface ReactionContext {
   mix: Mix;
   temperature?: number;
@@ -53,16 +65,16 @@ export interface ReactionContext {
 type Condition = (ctx: ReactionContext) => number;
 
 export class ReactionRule {
-  public readonly inputs: Mix;
-  public readonly outputs: Mix;
-  public readonly rate: number;
-  public readonly condition: Condition;
+  readonly inputs: Mix;
+  readonly outputs: Mix;
+  readonly rate: number;
+  readonly condition: Condition;
 
-  constructor({ inputs, outputs, rate, condition }: { inputs: Mix; outputs: Mix; rate: number; condition?: Condition }) {
-    this.inputs = inputs;
-    this.outputs = outputs;
-    this.rate = rate;
-    this.condition = condition ?? (() => 1);
+  constructor(opts: { inputs: Mix; outputs: Mix; rate: number; condition?: Condition }) {
+    this.inputs = opts.inputs;
+    this.outputs = opts.outputs;
+    this.rate = opts.rate;
+    this.condition = opts.condition ?? (() => 1);
   }
 
   apply(ctx: ReactionContext, dt: number): void {
@@ -84,15 +96,19 @@ export class ReactionRule {
     for (const [k, need] of Object.entries(this.inputs)) {
       mixAdd(ctx.mix, k, -need * extent);
     }
-
     for (const [k, out] of Object.entries(this.outputs)) {
       mixAdd(ctx.mix, k, out * extent);
     }
   }
 }
 
+/* =========================
+   Conditions helpers
+========================= */
+
 export function temperatureWindow(lo: number, hi: number): Condition {
-  return (ctx) => (ctx.temperature !== undefined && ctx.temperature >= lo && ctx.temperature <= hi ? 1 : 0);
+  return (ctx) =>
+    ctx.temperature !== undefined && ctx.temperature >= lo && ctx.temperature <= hi ? 1 : 0;
 }
 
 export function catalystBoost(catalyst: Substance, strength: number): Condition {
@@ -108,6 +124,10 @@ export function tagThreshold(tag: string, threshold: number, slope = 10): Condit
     return 1 / (1 + Math.exp(-slope * (val - threshold)));
   };
 }
+
+/* =========================
+   DNA entities
+========================= */
 
 export interface DnaItem {
   name: string;
@@ -129,6 +149,10 @@ export interface DnaNpc {
   social?: number;
 }
 
+/* =========================
+   Metabolism
+========================= */
+
 export function ingest(npc: DnaNpc, item: DnaItem, amount = 1): void {
   npc.stomach = mixMerge(npc.stomach ?? {}, mixScale(item.mix, amount));
 }
@@ -138,7 +162,9 @@ export function tickMetabolism(npc: DnaNpc, reactions: ReactionRule[], dt: numbe
     mix: npc.stomach ?? {},
     temperature: mixGet(npc.body, 'TEMP'),
     pH: mixGet(npc.body, 'PH'),
-    catalysts: Object.fromEntries(Object.entries(npc.body).filter(([k]) => k.startsWith('ENZ_'))),
+    catalysts: Object.fromEntries(
+      Object.entries(npc.body).filter(([k]) => k.startsWith('ENZ_')),
+    ),
   };
 
   for (const reaction of reactions) {
@@ -147,8 +173,9 @@ export function tickMetabolism(npc: DnaNpc, reactions: ReactionRule[], dt: numbe
 
   npc.stomach = ctx.mix;
 
-  const absorbRate = 0.1;
-  const absorbed = mixScale(npc.stomach, absorbRate * dt);
+  const absorbedFraction = clamp(0.1 * dt, 0, 0.5);
+  const absorbed = mixScale(npc.stomach, absorbedFraction);
+
   npc.stomach = mixMerge(npc.stomach, mixScale(absorbed, -1));
   npc.body = mixMerge(npc.body, absorbed);
 
@@ -160,7 +187,8 @@ function deriveMacroStates(npc: DnaNpc, dt: number): void {
   const inflam = mixGet(npc.body, 'INFLAM');
   const ser = mixGet(npc.body, 'SER');
   const water = mixGet(npc.body, 'H2O');
-   const stressChems =
+
+  const stressChems =
     mixGet(npc.body, 'STRESS') +
     mixGet(npc.body, 'CORT') +
     mixGet(npc.body, 'ADREN');
@@ -170,28 +198,16 @@ function deriveMacroStates(npc: DnaNpc, dt: number): void {
 
   npc.energy = clamp((npc.energy ?? 0.5) + (0.05 * glu - 0.03 * inflam) * dt, 0, 1);
   npc.pain = clamp((npc.pain ?? 0) + 0.06 * inflam * dt, 0, 1);
-
-  npc.mood = clamp(
-    (npc.mood ?? 0.5) + (0.04 * ser - 0.02 * inflam - 0.02 * stressChems) * dt,
-    0,
-    1,
-  );
-
-  npc.focus = clamp(
-    (npc.focus ?? 0.5) + (0.04 * dopa - 0.03 * stressChems) * dt,
-    0,
-    1,
-  );
-
+  npc.mood = clamp((npc.mood ?? 0.5) + (0.04 * ser - 0.02 * inflam - 0.02 * stressChems) * dt, 0, 1);
+  npc.focus = clamp((npc.focus ?? 0.5) + (0.04 * dopa - 0.03 * stressChems) * dt, 0, 1);
   npc.hunger = clamp((npc.hunger ?? 0.5) + (0.03 - 0.06 * glu) * dt, 0, 1);
   npc.thirst = clamp((npc.thirst ?? 0.5) + (0.03 - 0.08 * water) * dt, 0, 1);
-
-  npc.social = clamp(
-    (npc.social ?? 0.5) + (0.04 * socialBond - 0.02 * stressChems) * dt,
-    0,
-    1,
-  );
+  npc.social = clamp((npc.social ?? 0.5) + (0.04 * socialBond - 0.02 * stressChems) * dt, 0, 1);
 }
+
+/* =========================
+   Reactor (crafting / world)
+========================= */
 
 export function runReactor(
   itemMix: Mix,
@@ -207,6 +223,7 @@ export function runReactor(
 
   const steps = options.steps ?? 10;
   const dt = options.dt ?? 1;
+
   for (let i = 0; i < steps; i++) {
     for (const reaction of reactions) {
       reaction.apply(ctx, dt);
@@ -215,6 +232,11 @@ export function runReactor(
 
   return ctx.mix;
 }
+
+/* =========================
+   Macro snapshot (read-only)
+========================= */
+
 export interface MacroSnapshot {
   energy: number;
   pain: number;
@@ -230,7 +252,10 @@ export function deriveMacroSnapshot(body: Mix): MacroSnapshot {
   const inflam = mixGet(body, 'INFLAM');
   const ser = mixGet(body, 'SER');
   const water = mixGet(body, 'H2O');
-  const stressChems = mixGet(body, 'STRESS') + mixGet(body, 'CORT') + mixGet(body, 'ADREN');
+  const stressChems =
+    mixGet(body, 'STRESS') +
+    mixGet(body, 'CORT') +
+    mixGet(body, 'ADREN');
   const dopa = mixGet(body, 'DOPA');
 
   return {
@@ -244,51 +269,15 @@ export function deriveMacroSnapshot(body: Mix): MacroSnapshot {
   };
 }
 
+/* =========================
+   Reaction libraries
+========================= */
+
 export const SUBSTANCES: Substance[] = [
-
-  'H2O',
-  'O2',
-  'CO2',
-  'N2',
-  'IRON',
-  'CARBON',
-  'SILICA',
-  'SALT',
-  'MINERAL_DUST',
-  'HUMIDADE',
-  'D',
-  'Y',
-
-  'GLU',
-  'FRUCT',
-  'FIBER',
-  'AMARGO',
-  'DOCE',
-  'UMAMI',
-
-  'ATP',
-  'TOX_A',
-  'ANT_B',
-  'INFLAM',
-  'SER',
-  'DOPA',
-  'CORT',
-  'ADREN',
-  'STRESS',
-  'TEMP',
-  'PH',
-  'ENZ_X',
-  'ENZ_METAL',
-  'SOCIAL_BOND',
-
-  'ORE_FE',
-  'ORE_CU',
-  'ORE_SN',
-  'ORE_COAL',
-  'PIG_IRON',
-  'BRONZE',
-  'STEEL',
-  'SLAG',
+  'H2O','O2','CO2','N2','IRON','CARBON','SILICA','SALT','MINERAL_DUST','HUMIDADE','D','Y',
+  'GLU','FRUCT','FIBER','AMARGO','DOCE','UMAMI',
+  'ATP','TOX_A','ANT_B','INFLAM','SER','DOPA','CORT','ADREN','STRESS','TEMP','PH','ENZ_X','ENZ_METAL','SOCIAL_BOND',
+  'ORE_FE','ORE_CU','ORE_SN','ORE_COAL','PIG_IRON','BRONZE','STEEL','SLAG',
 ];
 
 export const REACTIONS_WORLD: ReactionRule[] = [
@@ -299,24 +288,6 @@ export const REACTIONS_WORLD: ReactionRule[] = [
     condition: tagThreshold('rainfall', 0.6),
   }),
   new ReactionRule({ inputs: { MINERAL_DUST: 1, H2O: 0.2 }, outputs: { SALT: 0.3 }, rate: 0.05 }),
-  new ReactionRule({
-    inputs: { ORE_FE: 1, ORE_COAL: 0.5 },
-    outputs: { PIG_IRON: 0.8, SLAG: 0.3 },
-    rate: 0.12,
-    condition: temperatureWindow(0.6, 1),
-  }),
-  new ReactionRule({
-    inputs: { PIG_IRON: 1, O2: 0.5 },
-    outputs: { STEEL: 0.7, SLAG: 0.2 },
-    rate: 0.15,
-    condition: temperatureWindow(0.7, 1),
-  }),
-  new ReactionRule({
-    inputs: { ORE_SN: 1, ORE_CU: 1 },
-    outputs: { BRONZE: 1 },
-    rate: 0.1,
-    condition: temperatureWindow(0.5, 0.9),
-  }),
 ];
 
 export const REACTIONS_BODY: ReactionRule[] = [
@@ -325,26 +296,9 @@ export const REACTIONS_BODY: ReactionRule[] = [
   new ReactionRule({ inputs: { ATP: 1 }, outputs: {}, rate: 0.1 }),
   new ReactionRule({ inputs: { TOX_A: 1 }, outputs: { INFLAM: 1 }, rate: 0.15 }),
   new ReactionRule({ inputs: { ANT_B: 1, TOX_A: 1 }, outputs: {}, rate: 0.5 }),
-  new ReactionRule({
-    inputs: { D: 1, ENZ_X: 0.1 },
-    outputs: { Y: 1 },
-    rate: 0.25,
-    condition: catalystBoost('ENZ_X', 1.5),
-  }),
-  new ReactionRule({ inputs: { DOCE: 1, AMARGO: 1 }, outputs: { UMAMI: 0.5 }, rate: 0.08 }),
-  new ReactionRule({
-    inputs: { UMAMI: 1 },
-    outputs: { SER: 0.2 },
-    rate: 0.05,
-    condition: temperatureWindow(0.2, 0.8),
-  }),
-  new ReactionRule({ inputs: { STRESS: 1 }, outputs: { CORT: 0.3, ADREN: 0.3 }, rate: 0.12 }),
-  new ReactionRule({ inputs: { CORT: 0.5 }, outputs: {}, rate: 0.05 }),
-  new ReactionRule({ inputs: { ADREN: 0.5 }, outputs: {}, rate: 0.05 }),
 ];
 
 export const REACTIONS_SOCIAL: ReactionRule[] = [
-  new ReactionRule({ inputs: { STRESS: 0.5 }, outputs: { AMARGO: 0.1 }, rate: 0.05 }),
   new ReactionRule({
     inputs: { SER: 0.2, DOPA: 0.2 },
     outputs: { SOCIAL_BOND: 0.4 },
@@ -366,49 +320,5 @@ export function flattenReactions(library: ReactionLibrary): ReactionRule[] {
   return [...library.REACTIONS_WORLD, ...library.REACTIONS_BODY, ...library.REACTIONS_SOCIAL];
 }
 
-export const SAMPLE_REACTIONS: ReactionRule[] = [...REACTIONS_BODY];
-  new ReactionRule({ inputs: { ATP: 1 }, outputs: {}, rate: 0.1 }),
-  new ReactionRule({ inputs: { TOX_A: 1 }, outputs: { INFLAM: 1 }, rate: 0.15 }),
-  new ReactionRule({ inputs: { ANT_B: 1, TOX_A: 1 }, outputs: {}, rate: 0.5 }),
-  new ReactionRule({
-    inputs: { D: 1, ENZ_X: 0.1 },
-    outputs: { Y: 1 },
-    rate: 0.25,
-    condition: catalystBoost('ENZ_X', 1.5),
-  }),
-  new ReactionRule({ inputs: { DOCE: 1, AMARGO: 1 }, outputs: { UMAMI: 0.5 }, rate: 0.08 }),
-  new ReactionRule({
-    inputs: { UMAMI: 1 },
-    outputs: { SER: 0.2 },
-    rate: 0.05,
-    condition: temperatureWindow(0.2, 0.8),
-  }),
-  new ReactionRule({ inputs: { STRESS: 1 }, outputs: { CORT: 0.3, ADREN: 0.3 }, rate: 0.12 }),
-  new ReactionRule({ inputs: { CORT: 0.5 }, outputs: {}, rate: 0.05 }),
-  new ReactionRule({ inputs: { ADREN: 0.5 }, outputs: {}, rate: 0.05 }),
-];
-
-export const REACTIONS_SOCIAL: ReactionRule[] = [
-  new ReactionRule({ inputs: { STRESS: 0.5 }, outputs: { AMARGO: 0.1 }, rate: 0.05 }),
-  new ReactionRule({
-    inputs: { SER: 0.2, DOPA: 0.2 },
-    outputs: { SOCIAL_BOND: 0.4 },
-    rate: 0.08,
-    condition: tagThreshold('trust', 0.5),
-  }),
-];
-
-export const REACTIONS_LIBRARY = {
-  SUBSTANCES,
-  REACTIONS_WORLD,
-  REACTIONS_BODY,
-  REACTIONS_SOCIAL,
-};
-
-export type ReactionLibrary = typeof REACTIONS_LIBRARY;
-export function flattenReactions(library: ReactionLibrary): ReactionRule[] {
-  return [...library.REACTIONS_WORLD, ...library.REACTIONS_BODY, ...library.REACTIONS_SOCIAL];
-}
-
-// Backward compatibility export; kept for tests/demos.
+/* Backward compatibility */
 export const SAMPLE_REACTIONS: ReactionRule[] = [...REACTIONS_BODY];
