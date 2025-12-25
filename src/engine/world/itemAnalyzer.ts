@@ -40,13 +40,6 @@ function proportion(mix: Mix, keys: string[]): number {
   return keys.reduce((acc, key) => acc + (normalized[key] ?? 0), 0);
 }
 
-function collectPrefixProportion(mix: Mix, prefix: string): number {
-  const normalized = normalizeMix(mix);
-  return Object.entries(normalized)
-    .filter(([k]) => k.startsWith(prefix))
-    .reduce((acc, [, v]) => acc + v, 0);
-}
-
 export function analyzeMix(mix: Mix): {
   tags: string[];
   traits: Record<string, number>;
@@ -58,14 +51,16 @@ export function analyzeMix(mix: Mix): {
   const tags: string[] = [];
 
   const ore = hasRelevant(normalized, ([k, v]) => k.startsWith('ORE_') && v > TAG_THRESHOLD);
-  const metal = hasRelevant(normalized, ([k, v]) => ['FE', 'CU', 'SN', 'AU'].includes(k) && v > TAG_THRESHOLD);
+  const metal = hasRelevant(normalized, ([k, v]) => ['IRON', 'FE', 'CU', 'SN', 'AU'].includes(k) && v > TAG_THRESHOLD);
   const wood = hasRelevant(normalized, ([k, v]) => ['FIBER', 'RESIN'].includes(k) && v > TAG_THRESHOLD);
   const stone = hasRelevant(normalized, ([k, v]) => ['SILICA', 'MINERAL_DUST'].includes(k) && v > TAG_THRESHOLD);
   const food = hasRelevant(normalized, ([k, v]) => ['GLU', 'FRUCT', 'UMAMI', 'FAT', 'PROTEIN'].includes(k) && v > TAG_THRESHOLD);
   const drink = hasRelevant(normalized, ([k, v]) => k === 'H2O' && v > TAG_THRESHOLD);
   const fuel = hasRelevant(normalized, ([k, v]) => ['CARBON', 'COAL', 'ORE_COAL'].includes(k) && v > TAG_THRESHOLD);
-  const toxic = hasRelevant(normalized, ([k, v]) => k.startsWith('TOX_') && v > TAG_THRESHOLD);
-  const medicine = hasRelevant(normalized, ([k, v]) => k.startsWith('ANT_') && v > TAG_THRESHOLD);
+  const reactive = hasRelevant(normalized, ([k, v]) =>
+    ['OXIDIZER', 'PH_ACID', 'PH_BASE', 'CHELATOR'].includes(k) && v > TAG_THRESHOLD,
+  );
+  const balancer = hasRelevant(normalized, ([k, v]) => k === 'PH_BUFFER' && v > TAG_THRESHOLD);
 
   if (ore) tags.push('ore');
   if (metal) tags.push('metal');
@@ -74,18 +69,18 @@ export function analyzeMix(mix: Mix): {
   if (food) tags.push('food');
   if (drink) tags.push('drink');
   if (fuel) tags.push('fuel');
-  if (toxic) tags.push('toxic');
-  if (medicine) tags.push('medicine');
-  if (food || wood || medicine) tags.push('organic');
+  if (reactive) tags.push('reactive');
+  if (balancer) tags.push('balancing');
+  if (food || wood) tags.push('organic');
   if (ore || stone || metal) tags.push('inorganic');
 
   const hydration = proportion(normalized, ['H2O']);
   const calories = proportion(normalized, ['GLU', 'FRUCT', 'FAT', 'PROTEIN']);
   const bitterness = proportion(normalized, ['AMARGO']);
   const umami = proportion(normalized, ['UMAMI']);
-  const toxicity = collectPrefixProportion(normalized, 'TOX_');
   const mineralness = proportion(normalized, ['SILICA', 'MINERAL_DUST', 'SALT', 'SLAG']);
   const metalness = proportion(normalized, [
+    'IRON',
     'FE',
     'CU',
     'SN',
@@ -97,14 +92,28 @@ export function analyzeMix(mix: Mix): {
     'ORE_COAL',
   ]);
 
+  const oxidizingPower = proportion(normalized, ['OXIDIZER']);
+  const acidityPotential = proportion(normalized, ['PH_ACID']);
+  const basicityPotential = proportion(normalized, ['PH_BASE']);
+  const chelatingPower = proportion(normalized, ['CHELATOR']);
+  const bufferingPower = proportion(normalized, ['PH_BUFFER']);
+  const osmoticLoad = proportion(normalized, ['SALT']);
+  const reactivity = oxidizingPower + acidityPotential + basicityPotential + chelatingPower + osmoticLoad;
+
   const traits = {
     hydration,
     calories,
     bitterness,
     umami,
-    toxicity,
     mineralness,
     metalness,
+    oxidizingPower,
+    acidityPotential,
+    basicityPotential,
+    chelatingPower,
+    bufferingPower,
+    osmoticLoad,
+    reactivity,
   } satisfies Record<string, number>;
 
   const oreEntries = Object.entries(normalized).filter(([k]) => k.startsWith('ORE_'));
@@ -135,10 +144,10 @@ export function analyzeMix(mix: Mix): {
   }
 
   const qualifiers: string[] = [];
-  if (traits.toxicity > 0.25) qualifiers.push('contaminado');
   if (traits.mineralness > 0.35 && tags.includes('drink')) qualifiers.push('salobra');
   if (traits.mineralness > 0.35 && (tags.includes('ore') || tags.includes('metal'))) qualifiers.push('impuro');
   if (traits.calories > 0.45 && tags.includes('food')) qualifiers.push('nutritivo');
+  if (traits.reactivity > 0.35) qualifiers.push('reativo');
 
   const displayName = qualifiers.length ? `${canonicalName} (${qualifiers.join(', ')})` : canonicalName;
 
