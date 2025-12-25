@@ -1,11 +1,17 @@
 import type { Mix } from '../dna';
 import { mixMerge } from '../dna';
+import { applyAnalysisToItem } from './itemAnalyzer';
 import type { ItemId } from '../types';
 
-interface ItemDefinition {
+export interface ItemDefinition {
   id: ItemId;
   name: string;
   mix: Mix;
+  tags?: string[];
+  traits?: Record<string, number>;
+  canonicalName?: string;
+  displayName?: string;
+  signature?: string;
 }
 
 /**
@@ -16,11 +22,15 @@ export class ItemRegistry {
   private counter = 0;
 
   constructor(seedItems?: ItemDefinition[]) {
-    seedItems?.forEach((item) => this.items.set(item.id, { ...item, mix: { ...item.mix } }));
+    seedItems?.forEach((item) => {
+      const analyzed = applyAnalysisToItem(item);
+      this.items.set(analyzed.id, { ...analyzed, mix: { ...analyzed.mix } });
+    });
   }
 
   register(id: ItemId, name: string, mix: Mix): ItemId {
-    this.items.set(id, { id, name, mix: { ...mix } });
+    const analyzed = applyAnalysisToItem({ id, name, mix });
+    this.items.set(id, { ...analyzed, mix: { ...analyzed.mix } });
     return id;
   }
 
@@ -57,6 +67,11 @@ export function createSeedItemRegistry(): ItemRegistry {
     { id: 'ore-iron', name: 'Minério de Ferro', mix: { ORE_FE: 1, MINERAL_DUST: 0.1 } },
     { id: 'ore-copper', name: 'Minério de Cobre', mix: { ORE_CU: 1, MINERAL_DUST: 0.1 } },
     { id: 'water-flask', name: 'Cantimplora', mix: { H2O: 1 } },
+    { id: 'raw-wood', name: 'Madeira', mix: { FIBER: 0.6, RESIN: 0.3, H2O: 0.2 } },
+    { id: 'raw-stone', name: 'Pedra', mix: { SILICA: 0.5, MINERAL_DUST: 0.4 } },
+    { id: 'raw-coal', name: 'Carvão', mix: { CARBON: 0.5, ORE_COAL: 0.5, COAL: 0.3 } },
+    { id: 'raw-salt', name: 'Sal', mix: { SALT: 0.8 } },
+    { id: 'raw-water', name: 'Água', mix: { H2O: 1 } },
   ];
 
   return new ItemRegistry(seedItems);
