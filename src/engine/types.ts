@@ -5,6 +5,9 @@
 import type { WorldMap, Vec2 } from './world/map';
 import type { MacroSnapshot, Mix } from './dna';
 
+export type CraftProcess = 'forge' | 'cook' | 'brew' | 'refine';
+export type CraftIntent = 'tool' | 'weapon' | 'food' | 'drink' | 'medicine' | 'material';
+
 // Phase 2: Type aliases for indices
 export type EntityId = string;
 export type ItemId = string;
@@ -84,6 +87,14 @@ export interface NPC {
     blood?: Mix;
     lastMacro?: MacroSnapshot;
   };
+
+  learnedRecipes?: Array<{
+    intent: CraftIntent;
+    process: CraftProcess;
+    inputSignatures: string[];
+    weights?: number[];
+    score: number;
+  }>;
 
   // Phase 3: Needs system (0-100, clamped)
   needs?: {
