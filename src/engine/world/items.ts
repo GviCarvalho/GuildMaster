@@ -2,7 +2,7 @@ import type { Mix } from '../dna';
 import { mixMerge } from '../dna';
 import type { ItemId } from '../types';
 
-interface ItemDefinition {
+export interface ItemDefinition {
   id: ItemId;
   name: string;
   mix: Mix;
