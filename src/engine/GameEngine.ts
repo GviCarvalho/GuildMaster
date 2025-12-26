@@ -37,6 +37,39 @@ const SECONDS_PER_DAY = 1200; // 20 minutes per day
 const ACTION_TICK_INTERVAL = 2000; // 2 seconds in milliseconds
 const MAX_REPORT_LOG_LINES = 500;
 
+// --- Talents -------------------------------------------------
+const JOB_TALENTS: Record<string, string[]> = {
+  Blacksmith: ['forge'],
+  Artisan: ['craft'],
+  Tailor: ['tailor'],
+  Builder: ['build'],
+  Weaver: ['weave'],
+  Lumberjack: ['harvest_wood'],
+  Farmer: ['grow_food'],
+  Rancher: ['raise_animals'],
+  Fisher: ['fish'],
+  Hunter: ['hunt'],
+  Miner: ['mine_ore'],
+  Alchemist: ['alchemy'],
+  Herbalist: ['alchemy'],
+  Merchant: ['trade'],
+  Guard: ['security'],
+  Soldier: ['security'],
+  Aristocrat: ['influence'],
+  Politician: ['influence'],
+  Patron: ['influence'],
+};
+
+function withUnique<T>(items: T[]): T[] {
+  return Array.from(new Set(items));
+}
+
+function talentsForJob(job: string): string[] {
+  return JOB_TALENTS[job] ?? [];
+}
+// ------------------------------------------------------------
+
+
 // Simple seeded random number generator for deterministic simulation
 class Random {
   private seed: number;
@@ -73,6 +106,7 @@ export class GameEngine {
   private initialEconomyGold: number = 0;
   private itemRegistry: ItemRegistry;
   private timeSinceLastItemSynthesis = 0;
+  private lastMarketFluctuationDay = -1;
   private stockpilesByPoi: StockpilesByPoi;
 
   constructor() {
@@ -338,7 +372,13 @@ export class GameEngine {
         caste: family.caste,
         reputation: reputation,
         stats: stats,
-        talents: [], // Future talent selection system
+        talents: withUnique([
+        ...talentsForJob(job),
+        // A bit of natural variance: very strong NPCs might also learn harvesting/mining basics
+        ...(stats.strength > 8 ? ['harvest_wood'] : []),
+        ...(stats.wisdom > 8 ? ['alchemy'] : []),
+        ...(stats.dexterity > 8 ? ['craft'] : []),
+      ]),
         pos: { x, y },
         money: initialMoney,
         job: job,
@@ -643,68 +683,109 @@ export class GameEngine {
   private actionNPCTrade(): void {
     if (this.state.npcs.length < 2) return;
 
-    const buyer = this.random.choice(this.state.npcs);
-    const seller = this.random.choice(
-      this.state.npcs.filter((n) => n.id !== buyer.id)
-    );
-    
-    // Check if buyer is at the Market or Tavern
     const marketPOI = this.state.worldMap.getPOI('market');
     const tavernPOI = this.state.worldMap.getPOI('tavern');
-    
-    const buyerAtMarketOrTavern = (marketPOI && this.isNPCAtPOI(buyer, marketPOI)) || 
-                                   (tavernPOI && this.isNPCAtPOI(buyer, tavernPOI));
-    
-    if (!buyerAtMarketOrTavern) {
-      // NPC needs to move to market first
-      if (marketPOI && !buyer.targetPos) {
-        buyer.targetPos = { x: marketPOI.pos.x, y: marketPOI.pos.y };
+
+    // Prefer trades at Market/Tavern.
+    const tradePoi = marketPOI ?? tavernPOI;
+    if (!tradePoi) return;
+
+    const buyer = this.random.choice(this.state.npcs);
+
+    // If buyer isn't at a trade place, send them there sometimes.
+    const buyerAtTradePoi = this.isNPCAtPOI(buyer, tradePoi);
+    if (!buyerAtTradePoi) {
+      if (this.random.next() < 0.4 && !buyer.targetPos) {
+        buyer.targetPos = { x: tradePoi.pos.x, y: tradePoi.pos.y };
         const path = findPath(buyer.pos, buyer.targetPos, this.state.worldMap);
-        if (path.length > 0) {
-          buyer.currentPath = path;
-        } else {
-          buyer.targetPos = undefined;
-        }
+        buyer.currentPath = path.length > 0 ? path : undefined;
+        if (!buyer.currentPath) buyer.targetPos = undefined;
       }
       return;
     }
-    
-    // Phase 3: Use closed economy - transfer gold between NPCs
-    const amount = this.random.nextInt(5, 20);
-    const success = transferGold(this.state, buyer.id, seller.id, amount, 'trade');
-    
-    if (success) {
-      this.addReportLog(
-        `${buyer.name} traded ${amount} coins with ${seller.name}.`
-      );
-      
-      // Improve social relation through trade
+
+    // Pick what the buyer is looking for.
+    const hunger = buyer.needs?.hunger ?? 50;
+    const desiredTags = hunger < 55 ? ['food', 'drink'] : this.random.next() < 0.6 ? ['tool'] : ['material'];
+
+    // Find potential sellers at the same POI.
+    const sellers = this.state.npcs.filter((n) => n.id !== buyer.id && this.isNPCAtPOI(n, tradePoi));
+    if (sellers.length === 0) return;
+
+    // Try NPC-to-NPC sale first.
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const seller = this.random.choice(sellers);
+      const sellerCatalog = this.itemRegistry
+        .list()
+        .filter((it) => it.tags?.some((t) => desiredTags.includes(t)) && inventoryHas(seller, it.id, 1));
+      if (sellerCatalog.length === 0) continue;
+
+      const item = this.random.choice(sellerCatalog);
+      const tagForPrice = item.tags?.find((t) => desiredTags.includes(t)) ?? desiredTags[0];
+      const poiId = tradePoi.id;
+      const base = tagForPrice === 'tool' ? 25 : tagForPrice === 'material' ? 15 : 10;
+      const price = Math.max(1, Math.round(base * this.getPriceMultiplier(poiId, tagForPrice)));
+      if (buyer.money < price) continue;
+
+      const paid = transferGold(this.state, buyer.id, seller.id, price, 'trade');
+      if (!paid) continue;
+
+      inventoryRemove(seller, item.id, 1, this.indices);
+      inventoryAdd(buyer, item.id, 1, this.indices);
+
+      this.addReportLog(`${buyer.name} bought ${item.name} from ${seller.name} for ${price} coins.`);
       performSocialInteraction(this.state, buyer.id, seller.id, 'trade');
-      
-      // Satisfy hunger need slightly from trade (acquiring goods)
-      satisfyNeed(buyer, 'hunger', 5);
+      satisfyNeed(buyer, 'hunger', desiredTags.includes('food') || desiredTags.includes('drink') ? 8 : 2);
+      return;
     }
+
+    // Fallback: buy from POI stockpile ("market") if available (city treasury as seller).
+    const poiId = tradePoi.id;
+    const stockpile = getPoiStockpile(this.stockpilesByPoi, poiId);
+    const candidates = desiredTags
+      .map((tag) => stockPickByTag(stockpile, this.itemRegistry, tag, this.random))
+      .filter((x): x is any => Boolean(x));
+    if (candidates.length === 0) return;
+
+    const item = this.random.choice(candidates);
+
+    const tagForPrice = item.tags?.find((t) => desiredTags.includes(t)) ?? desiredTags[0];
+    const base = tagForPrice === 'tool' ? 25 : tagForPrice === 'material' ? 15 : 10;
+    const price = Math.max(1, Math.round(base * this.getPriceMultiplier(poiId, tagForPrice)));
+    if (buyer.money < price) return;
+
+    const paid = transferGold(this.state, buyer.id, 'city', price, 'trade');
+    if (!paid) return;
+
+    stockRemove(stockpile, item.id, 1);
+    inventoryAdd(buyer, item.id, 1, this.indices);
+
+    this.addReportLog(`${buyer.name} purchased ${item.name} at ${tradePoi.name} for ${price} coins.`);
+    satisfyNeed(buyer, 'hunger', desiredTags.includes('food') || desiredTags.includes('drink') ? 6 : 1);
   }
 
   private getCraftProfileForJob(job: string):
-    | { intent: CraftIntent; process: CraftProcess; requiredTags: string[][]; optionalTags?: string[][] }
+    | { intent: CraftIntent; process: CraftProcess; requiredTags: string[][]; optionalTags?: string[][]; requiredTalent?: string }
     | null {
     switch (job) {
       case 'Blacksmith':
         return {
+          requiredTalent: 'forge',
           intent: this.random.next() > 0.6 ? 'weapon' : 'tool',
           process: 'forge',
           requiredTags: [['ore', 'metal'], ['wood', 'organic'], ['fuel']],
         };
       case 'Artisan':
         return {
+          requiredTalent: 'craft',
           intent: this.random.next() > 0.55 ? 'tool' : 'material',
-          process: this.random.next() > 0.5 ? 'cook' : 'refine',
-          requiredTags: [['wood', 'organic', 'fiber'], ['wood', 'organic', 'fiber']],
-          optionalTags: [['stone']],
+          process: 'refine',
+          requiredTags: [['wood', 'fiber', 'organic'], ['stone', 'wood']],
+          optionalTags: [['fuel']],
         };
       case 'Tailor':
         return {
+          requiredTalent: 'tailor',
           intent: 'material',
           process: 'cook',
           requiredTags: [['fiber'], ['fiber']],
@@ -712,6 +793,7 @@ export class GameEngine {
         };
       case 'Builder':
         return {
+          requiredTalent: 'build',
           intent: this.random.next() > 0.4 ? 'material' : 'tool',
           process: 'refine',
           requiredTags: [['stone'], ['wood', 'organic']],
@@ -719,6 +801,7 @@ export class GameEngine {
         };
       case 'Weaver':
         return {
+          requiredTalent: 'weave',
           intent: 'material',
           process: 'cook',
           requiredTags: [['fiber'], ['fiber', 'organic']],
@@ -726,6 +809,7 @@ export class GameEngine {
         };
       case 'Lumberjack':
         return {
+          requiredTalent: 'harvest_wood',
           intent: 'material',
           process: 'refine',
           requiredTags: [['wood'], ['wood']],
@@ -733,6 +817,7 @@ export class GameEngine {
         };
       case 'Farmer':
         return {
+          requiredTalent: 'grow_food',
           intent: 'food',
           process: 'cook',
           requiredTags: [['food']],
@@ -740,6 +825,7 @@ export class GameEngine {
         };
       case 'Rancher':
         return {
+          requiredTalent: 'raise_animals',
           intent: this.random.next() > 0.5 ? 'food' : 'drink',
           process: this.random.next() > 0.4 ? 'cook' : 'brew',
           requiredTags: [['food', 'organic'], ['drink']],
@@ -748,6 +834,7 @@ export class GameEngine {
       case 'Alchemist':
       case 'Herbalist':
         return {
+          requiredTalent: 'alchemy',
           intent: this.random.next() > 0.5 ? 'medicine' : 'drink',
           process: 'brew',
           requiredTags: [['organic'], ['balancing', 'stone']],
@@ -755,6 +842,7 @@ export class GameEngine {
         };
       case 'Miner':
         return {
+          requiredTalent: 'mine_ore',
           intent: 'material',
           process: 'refine',
           requiredTags: [['ore', 'stone'], ['stone']],
@@ -762,6 +850,7 @@ export class GameEngine {
         };
       case 'Hunter':
         return {
+          requiredTalent: 'hunt',
           intent: this.random.next() > 0.4 ? 'food' : 'material',
           process: 'cook',
           requiredTags: [['organic']],
@@ -769,6 +858,7 @@ export class GameEngine {
         };
       case 'Fisher':
         return {
+          requiredTalent: 'fish',
           intent: 'food',
           process: 'cook',
           requiredTags: [['food', 'drink']],
@@ -995,6 +1085,12 @@ export class GameEngine {
 
     const npc = this.random.choice(this.state.npcs);
     let profile = this.getCraftProfileForJob(npc.job);
+
+    // Talent gate: if an NPC lacks the core talent for a job, they simply can't do that work.
+    if (profile?.requiredTalent && !npc.talents?.includes(profile.requiredTalent)) {
+      return;
+    }
+
     if (!profile) return;
 
     // Determine work location based on job
@@ -1283,6 +1379,9 @@ export class GameEngine {
   }
 
   private actionMarketFluctuation(): void {
+    // Market fluctuations are meant to be a slow signal. Avoid spamming the log every action tick.
+    if (this.lastMarketFluctuationDay === this.state.day) return;
+    this.lastMarketFluctuationDay = this.state.day;
     const anchorPoi = this.state.worldMap.getPOI('market')?.id ?? this.resolveDefaultPoiId();
     const foodScarcity = this.computeLocalScarcity(anchorPoi, 'food');
     const drinkScarcity = this.computeLocalScarcity(anchorPoi, 'drink');
