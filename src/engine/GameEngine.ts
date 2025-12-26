@@ -949,51 +949,38 @@ export class GameEngine {
     stockpile: Stockpile,
     poiId: PoiId,
   ): boolean {
-    let predicate: (item: ItemDefinition) => boolean;
-    let labelPrefix: string;
-    let activity: string;
+    const jobConfig: Partial<Record<NPC['job'], { sourcePoi: PoiId; tags: string[][]; activity: string }>> = {
+      Miner: { sourcePoi: 'mine', tags: [['ore', 'metal', 'stone', 'fuel']], activity: 'hauled resources from' },
+      Lumberjack: { sourcePoi: 'forest', tags: [['wood']], activity: 'felled timber in' },
+      Farmer: { sourcePoi: 'market', tags: [['food', 'organic'], ['drink']], activity: 'collected produce at' },
+      Rancher: { sourcePoi: 'market', tags: [['fiber', 'food', 'organic']], activity: 'brought ranch goods from' },
+      Fisher: { sourcePoi: 'tavern', tags: [['food', 'drink', 'organic']], activity: 'hauled a catch from' },
+      Hunter: { sourcePoi: 'forest', tags: [['organic', 'food', 'fiber']], activity: 'returned with game from' },
+    };
 
-    switch (npc.job) {
-      case 'Miner':
-        predicate = (item) => item.tags?.some((tag) => tag === 'ore' || tag === 'stone') ?? false;
-        labelPrefix = 'Mined ore';
-        activity = 'mined';
-        break;
-      case 'Lumberjack':
-        predicate = (item) => item.tags?.includes('wood') ?? false;
-        labelPrefix = 'Harvested wood';
-        activity = 'felled timber and hauled';
-        break;
-      case 'Farmer':
-        predicate = (item) => Boolean(item.tags?.includes('food') && item.tags?.includes('organic'));
-        labelPrefix = 'Harvested crop';
-        activity = 'harvested produce and stocked';
-        break;
-      case 'Rancher':
-        predicate = (item) =>
-          Boolean((item.tags?.includes('fiber') || item.tags?.includes('food')) && item.tags?.includes('organic'));
-        labelPrefix = 'Ranch yield';
-        activity = 'gathered ranch goods and stored';
-        break;
-      case 'Fisher':
-        predicate = (item) => Boolean(item.tags?.includes('food') && (item.tags?.includes('organic') || item.tags?.includes('drink')));
-        labelPrefix = 'Fresh catch';
-        activity = 'hauled in a catch and delivered';
-        break;
-      case 'Hunter':
-        predicate = (item) => Boolean(item.tags?.includes('organic') && (item.tags?.includes('food') || item.tags?.includes('fiber')));
-        labelPrefix = 'Hunted game';
-        activity = 'brought back game and stocked';
-        break;
-      default:
-        return false;
+    const config = npc.job ? jobConfig[npc.job] : undefined;
+    if (!config) return false;
+
+    const sourceStockpile = getPoiStockpile(this.stockpilesByPoi, config.sourcePoi);
+    const sourcePoiName = this.state.worldMap.getPOI(config.sourcePoi)?.name ?? config.sourcePoi;
+    const tagPool = withUnique(config.tags.flat());
+    let picked: ItemDefinition | null = null;
+
+    const attemptedTags = new Set<string>();
+    while (attemptedTags.size < tagPool.length && !picked) {
+      const tag = this.random.choice(tagPool.filter((t) => !attemptedTags.has(t)));
+      attemptedTags.add(tag);
+      picked = stockPickByTag(sourceStockpile, this.itemRegistry, tag, this.random);
     }
 
-    const gatheredId = this.ensureProceduralItemId(labelPrefix, predicate);
-    stockAdd(stockpile, gatheredId, 1);
-    const gatheredDef = this.itemRegistry.getItem(gatheredId);
-    const described = gatheredDef?.displayName ?? gatheredDef?.name ?? gatheredId;
-    this.addReportLog(`${npc.name} ${activity} ${described} at ${poiId}.`);
+    if (!picked) {
+      return false;
+    }
+
+    stockRemove(sourceStockpile, picked.id, 1);
+    stockAdd(stockpile, picked.id, 1);
+    const described = picked.displayName ?? picked.name ?? picked.id;
+    this.addReportLog(`${npc.name} ${config.activity} ${sourcePoiName} and stocked ${described} at ${poiId}.`);
 
     modifyNeed(npc, 'hunger', -5);
     modifyNeed(npc, 'fun', -2);
