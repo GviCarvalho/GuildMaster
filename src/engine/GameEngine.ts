@@ -964,8 +964,11 @@ export class GameEngine {
     const config = npc.job ? jobConfig[npc.job] : undefined;
     if (!config) return false;
 
-    const sourceStockpile = getPoiStockpile(this.stockpilesByPoi, config.sourcePoi);
-    const sourcePoiName = this.state.worldMap.getPOI(config.sourcePoi)?.name ?? config.sourcePoi;
+    const sources = config.sourcePois.map((sourcePoiId) => ({
+      poiId: sourcePoiId,
+      stockpile: getPoiStockpile(this.stockpilesByPoi, sourcePoiId),
+    }));
+
     const destinationPoi =
       this.state.worldMap.getPOI('market') ??
       this.state.worldMap.getPOI('guild-hall') ??
@@ -993,8 +996,10 @@ export class GameEngine {
       return false;
     }
 
-    stockRemove(sourceStockpile, picked.id, 1);
+    stockRemove(usedSource.stockpile, picked.id, 1);
     const described = picked.displayName ?? picked.name ?? picked.id;
+
+    const sourcePoiName = this.state.worldMap.getPOI(usedSource.poiId)?.name ?? usedSource.poiId;
 
     const destinationName = destinationPoi?.name ?? destinationPoiId;
     const atDestination = destinationPoi ? this.isNPCAtPOI(npc, destinationPoi) : true;
@@ -1012,7 +1017,7 @@ export class GameEngine {
       } else {
         npc.pendingDelivery = {
           destinationPoiId: destinationPoi.id,
-          sourcePoiId: config.sourcePoi,
+          sourcePoiId: usedSource.poiId,
           cargo: [{ itemId: picked.id, quantity: 1 }],
         };
       }
