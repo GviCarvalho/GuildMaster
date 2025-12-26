@@ -1232,6 +1232,8 @@ export class GameEngine {
     if (this.processNpcDelivery(npc)) {
       return;
     }
+    const gathererJobs: NPC['job'][] = ['Farmer', 'Rancher', 'Fisher', 'Hunter', 'Miner', 'Lumberjack'];
+    const isGatherer = gathererJobs.includes(npc.job as NPC['job']);
     let profile = this.getCraftProfileForJob(npc.job);
 
     // Talent gate: if an NPC lacks the core talent for a job, they simply can't do that work.
@@ -1260,6 +1262,13 @@ export class GameEngine {
     const currentPoi = this.getNpcPoi(npc) ?? this.state.worldMap.getPOI('market');
     const poiId = (requiredPOI ?? currentPoi)?.id ?? this.resolveDefaultPoiId();
     const stockpile = getPoiStockpile(this.stockpilesByPoi, poiId);
+
+    if (isGatherer) {
+      if (this.performGatheringJob(npc, stockpile, poiId)) {
+        return;
+      }
+      return;
+    }
 
     const foodScarcity = this.computeLocalScarcity(poiId, 'food');
     const drinkScarcity = this.computeLocalScarcity(poiId, 'drink');
