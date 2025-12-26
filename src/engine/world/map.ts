@@ -130,6 +130,24 @@ export class WorldMap {
         pos: { x: 56, y: 48 },
         footprint: { x: 3, y: 3 },
       },
+      {
+        id: 'shore',
+        name: 'Shore',
+        pos: { x: 6, y: 12 },
+        footprint: { x: 2, y: 2 },
+      },
+      {
+        id: 'farmstead',
+        name: 'Farmstead',
+        pos: { x: 44, y: 52 },
+        footprint: { x: 3, y: 3 },
+      },
+      {
+        id: 'ranch',
+        name: 'Ranch',
+        pos: { x: 20, y: 46 },
+        footprint: { x: 3, y: 2 },
+      },
     ];
 
     // Ensure POI locations are walkable (including footprint area)
