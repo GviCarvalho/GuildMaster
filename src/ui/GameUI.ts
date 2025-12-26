@@ -3,6 +3,7 @@
  */
 import type { GameState } from '../engine';
 import { TileType } from '../engine/world/map';
+import { asciiTilePalette, mapFrame, mapLegendGlyphs } from './mapAssets';
 
 export class GameUI {
   private rootElement: HTMLElement;
@@ -154,13 +155,16 @@ export class GameUI {
                   <div>
                     <h2>City Map (ASCII)</h2>
                 <div class="gm-small">
-                  NPCs wander between points of interest. Letters = NPC initials, capitals = POIs, > = someone en route, * = crowded tile.
+                  NPCs wander between points of interest. ◎ marks POIs, NPC initials overlay the cobbled paths (╫), > shows travellers, and * highlights crowded tiles.
                 </div>
               </div>
               <div class="gm-map-legend gm-small">
-                <div><span class="gm-map-key gm-road"></span> Road</div>
-                <div><span class="gm-map-key gm-building"></span> Building</div>
-                <div><span class="gm-map-key gm-water"></span> Water</div>
+                ${mapLegendGlyphs
+                  .map(
+                    (entry) =>
+                      `<div class="gm-map-chip"><span class="gm-map-glyph">${entry.glyph}</span>${entry.label}</div>`
+                  )
+                  .join('')}
               </div>
             </div>
             <pre class="gm-ascii-map" aria-label="ASCII city map">${asciiMap}</pre>
@@ -208,9 +212,12 @@ export class GameUI {
                     <div class="gm-small">Live ASCII view without scrolling the main dashboard.</div>
                   </div>
                   <div class="gm-map-legend gm-small">
-                    <div><span class="gm-map-key gm-road"></span> Road</div>
-                    <div><span class="gm-map-key gm-building"></span> Building</div>
-                    <div><span class="gm-map-key gm-water"></span> Water</div>
+                    ${mapLegendGlyphs
+                      .map(
+                        (entry) =>
+                          `<div class="gm-map-chip"><span class="gm-map-glyph">${entry.glyph}</span>${entry.label}</div>`
+                      )
+                      .join('')}
                   </div>
                 </div>
                 <pre class="gm-ascii-map gm-ascii-map-full" aria-label="Full ASCII city map">${asciiMap}</pre>
@@ -316,25 +323,22 @@ export class GameUI {
         }
 
         const tile = map.getTile(bx * stride, by * stride);
-        switch (tile?.type) {
-          case TileType.Road:
-            row += '·';
-            break;
-          case TileType.Building:
-            row += '#';
-            break;
-          case TileType.Water:
-            row += '~';
-            break;
-          default:
-            row += ' ';
-            break;
+        if (tile) {
+          row += asciiTilePalette[tile.type].glyph;
+        } else {
+          row += ' ';
         }
       }
       rows.push(row);
     }
 
-    return rows.join('\n');
+    const horizontalRule = mapFrame.horizontal.repeat(bucketsX);
+    const top = `${mapFrame.topLeft}${horizontalRule}${mapFrame.topRight}`;
+    const bottom = `${mapFrame.bottomLeft}${horizontalRule}${mapFrame.bottomRight}`;
+
+    const framed = rows.map((row) => `${mapFrame.vertical}${row}${mapFrame.vertical}`);
+
+    return [top, ...framed, bottom].join('\n');
   }
 
 }

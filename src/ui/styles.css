@@ -245,34 +245,40 @@ body {
 
 .gm-map-legend {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  min-width: 180px;
+}
+
+.gm-map-chip {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  min-width: 140px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
 }
 
-.gm-map-key {
-  display: inline-block;
-  width: 18px;
-  height: 10px;
-  margin-right: 6px;
-  border-radius: 4px;
-  vertical-align: middle;
-}
-
-.gm-road {
-  background: linear-gradient(90deg, rgba(255,255,255,0.25), rgba(255,255,255,0.08));
-}
-
-.gm-building {
-  background: rgba(255, 120, 120, 0.35);
-}
-
-.gm-water {
-  background: rgba(120, 170, 255, 0.35);
+.gm-map-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.25);
+  color: #9cf2a0;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.35);
 }
 
 .gm-ascii-map {
-  background: #090b10;
+  background: radial-gradient(circle at 20% 20%, rgba(62, 118, 170, 0.08), transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(124, 213, 164, 0.08), transparent 35%),
+    #090b10;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px;
   padding: 12px;
