@@ -108,6 +108,7 @@ export class GameEngine {
   private timeSinceLastItemSynthesis = 0;
   private lastMarketFluctuationDay = -1;
   private stockpilesByPoi: StockpilesByPoi;
+  private onlyWorkMode = false;
 
   constructor() {
     this.random = new Random();
@@ -510,6 +511,13 @@ export class GameEngine {
   }
 
   /**
+   * Enable or disable "work-only" simulation mode for troubleshooting gatherers.
+   */
+  setOnlyWorkMode(enabled: boolean): void {
+    this.onlyWorkMode = enabled;
+  }
+
+  /**
    * Add entry to report log with capping
    */
   private addReportLog(message: string): void {
@@ -542,6 +550,11 @@ export class GameEngine {
    * Execute a single random world action
    */
   private executeRandomAction(): void {
+    if (this.onlyWorkMode) {
+      this.actionNPCWork();
+      return;
+    }
+
     const actionType = this.random.nextInt(0, 5);
 
     switch (actionType) {
