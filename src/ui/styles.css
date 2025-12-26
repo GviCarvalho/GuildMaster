@@ -198,6 +198,23 @@ body {
   min-width: 140px;
 }
 
+.gm-map-open {
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(135deg, rgba(255, 215, 120, 0.16), rgba(120, 140, 255, 0.16));
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+
+.gm-map-open:hover {
+  border-color: rgba(241, 196, 15, 0.45);
+  transform: translateY(-1px);
+}
+
 .gm-map-key {
   display: inline-block;
   width: 18px;

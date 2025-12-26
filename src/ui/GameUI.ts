@@ -11,6 +11,8 @@ export class GameUI {
   private renderThrottleMs: number = 250;
   private pendingRender: boolean = false;
   private engineToggle?: () => void;
+  private mapWindow: Window | null = null;
+  private latestAsciiMap = '';
 
   constructor(rootElement: HTMLElement) {
     this.rootElement = rootElement;
@@ -22,6 +24,8 @@ export class GameUI {
           this.questCompleteHandler?.(target.dataset.questId);
         } else if (target.dataset.action === 'toggle-simulation') {
           this.engineToggle?.();
+        } else if (target.dataset.action === 'open-map-tab') {
+          this.openMapTab(this.latestAsciiMap);
         }
       }
     });
@@ -63,6 +67,8 @@ export class GameUI {
       : 'gm-action-btn';
     const btnTitle = state.simRunning ? 'Pause simulation' : 'Start simulation';
     const asciiMap = this.renderAsciiMap(state);
+    this.latestAsciiMap = asciiMap;
+    this.updateMapWindow(asciiMap);
 
     this.rootElement.innerHTML = `
       <div class="gm-stage">
@@ -142,6 +148,7 @@ export class GameUI {
                     <div><span class="gm-map-key gm-road"></span> Road</div>
                     <div><span class="gm-map-key gm-building"></span> Building</div>
                     <div><span class="gm-map-key gm-water"></span> Water</div>
+                    <button class="gm-map-open" data-action="open-map-tab" title="Open map in a new tab">Open full map</button>
                   </div>
                 </div>
                 <pre class="gm-ascii-map" aria-label="ASCII city map">${asciiMap}</pre>
@@ -298,5 +305,88 @@ export class GameUI {
     }
 
     return rows.join('\n');
+  }
+
+  /**
+   * Open or refresh the full-size map window for easier viewing.
+   */
+  private openMapTab(content: string): void {
+    if (this.mapWindow && this.mapWindow.closed) {
+      this.mapWindow = null;
+    }
+
+    if (!this.mapWindow) {
+      this.mapWindow = window.open('', 'guildmaster-map', 'noopener,noreferrer');
+
+      if (!this.mapWindow) {
+        return;
+      }
+
+      const doc = this.mapWindow.document;
+      doc.open();
+      doc.write(`
+        <!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <title>GuildMaster Map</title>
+            <style>
+              :root {
+                color-scheme: dark;
+              }
+              body {
+                margin: 0;
+                background: #05070b;
+                color: #aef7b0;
+                font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+                display: grid;
+                grid-template-rows: auto 1fr;
+                min-height: 100vh;
+              }
+              header {
+                padding: 14px 18px 8px 18px;
+                color: rgba(255,255,255,0.78);
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.35));
+                border-bottom: 1px solid rgba(255,255,255,0.08);
+                position: sticky;
+                top: 0;
+              }
+              pre {
+                margin: 0;
+                padding: 18px;
+                white-space: pre;
+                font-size: 12px;
+                line-height: 1.2;
+                overflow: auto;
+              }
+            </style>
+          </head>
+          <body>
+            <header>GuildMaster City Map (live)</header>
+            <pre id="gm-map-view" aria-label="Full ASCII city map"></pre>
+          </body>
+        </html>
+      `);
+      doc.close();
+    }
+
+    this.updateMapWindow(content);
+  }
+
+  /**
+   * Push the latest ASCII map into the detached map window.
+   */
+  private updateMapWindow(content: string): void {
+    if (!this.mapWindow || this.mapWindow.closed) {
+      this.mapWindow = null;
+      return;
+    }
+
+    const target = this.mapWindow.document.getElementById('gm-map-view') as HTMLPreElement | null;
+    if (target) {
+      target.textContent = content;
+    }
   }
 }
