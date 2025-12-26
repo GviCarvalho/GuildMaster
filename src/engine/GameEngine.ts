@@ -946,7 +946,7 @@ export class GameEngine {
 
   private performGatheringJob(
     npc: NPC,
-    stockpile: Stockpile,
+    _stockpile: Stockpile,
     poiId: PoiId,
   ): boolean {
     const jobConfig: Partial<Record<NPC['job'], { sourcePoi: PoiId; tags: string[][]; activity: string }>> = {
@@ -963,6 +963,12 @@ export class GameEngine {
 
     const sourceStockpile = getPoiStockpile(this.stockpilesByPoi, config.sourcePoi);
     const sourcePoiName = this.state.worldMap.getPOI(config.sourcePoi)?.name ?? config.sourcePoi;
+    const destinationPoi =
+      this.state.worldMap.getPOI('market') ??
+      this.state.worldMap.getPOI('guild-hall') ??
+      this.state.worldMap.getPOI(poiId);
+    const destinationPoiId = destinationPoi?.id ?? poiId;
+    const destinationStockpile = getPoiStockpile(this.stockpilesByPoi, destinationPoiId);
     const tagPool = withUnique(config.tags.flat());
     let picked: ItemDefinition | null = null;
 
@@ -978,12 +984,91 @@ export class GameEngine {
     }
 
     stockRemove(sourceStockpile, picked.id, 1);
-    stockAdd(stockpile, picked.id, 1);
     const described = picked.displayName ?? picked.name ?? picked.id;
-    this.addReportLog(`${npc.name} ${config.activity} ${sourcePoiName} and stocked ${described} at ${poiId}.`);
+
+    const destinationName = destinationPoi?.name ?? destinationPoiId;
+    const atDestination = destinationPoi ? this.isNPCAtPOI(npc, destinationPoi) : true;
+
+    if (!atDestination && destinationPoi) {
+      inventoryAdd(npc, picked.id, 1, this.indices);
+
+      if (npc.pendingDelivery && npc.pendingDelivery.destinationPoiId === destinationPoi.id) {
+        const existingCargo = npc.pendingDelivery.cargo.find((c) => c.itemId === picked.id);
+        if (existingCargo) {
+          existingCargo.quantity += 1;
+        } else {
+          npc.pendingDelivery.cargo.push({ itemId: picked.id, quantity: 1 });
+        }
+      } else {
+        npc.pendingDelivery = {
+          destinationPoiId: destinationPoi.id,
+          sourcePoiId: config.sourcePoi,
+          cargo: [{ itemId: picked.id, quantity: 1 }],
+        };
+      }
+
+      if (!npc.targetPos) {
+        npc.targetPos = { x: destinationPoi.pos.x, y: destinationPoi.pos.y };
+        const path = findPath(npc.pos, npc.targetPos, this.state.worldMap);
+        npc.currentPath = path.length > 0 ? path : undefined;
+        if (!npc.currentPath) npc.targetPos = undefined;
+      }
+
+      this.addReportLog(
+        `${npc.name} ${config.activity} ${sourcePoiName} and is hauling ${described} to ${destinationName}.`,
+      );
+    } else {
+      stockAdd(destinationStockpile, picked.id, 1);
+      this.addReportLog(
+        `${npc.name} ${config.activity} ${sourcePoiName} and stocked ${described} at ${destinationPoiId}.`,
+      );
+    }
 
     modifyNeed(npc, 'hunger', -5);
     modifyNeed(npc, 'fun', -2);
+    return true;
+  }
+
+  private processNpcDelivery(npc: NPC): boolean {
+    const delivery = npc.pendingDelivery;
+    if (!delivery || delivery.cargo.length === 0) return false;
+
+    const destinationPoi = this.state.worldMap.getPOI(delivery.destinationPoiId);
+    if (!destinationPoi) {
+      npc.pendingDelivery = undefined;
+      return false;
+    }
+
+    if (!this.isNPCAtPOI(npc, destinationPoi)) {
+      if (!npc.targetPos) {
+        npc.targetPos = { x: destinationPoi.pos.x, y: destinationPoi.pos.y };
+        const path = findPath(npc.pos, npc.targetPos, this.state.worldMap);
+        npc.currentPath = path.length > 0 ? path : undefined;
+        if (!npc.currentPath) npc.targetPos = undefined;
+      }
+      return true;
+    }
+
+    const destinationStockpile = getPoiStockpile(this.stockpilesByPoi, delivery.destinationPoiId);
+    const deliveredItems: string[] = [];
+
+    for (const cargo of delivery.cargo) {
+      if (inventoryRemove(npc, cargo.itemId, cargo.quantity, this.indices)) {
+        stockAdd(destinationStockpile, cargo.itemId, cargo.quantity);
+        deliveredItems.push(`${cargo.quantity}x ${this.describeItem(cargo.itemId)}`);
+      }
+    }
+
+    if (deliveredItems.length > 0) {
+      const sourceName = delivery.sourcePoiId
+        ? this.state.worldMap.getPOI(delivery.sourcePoiId)?.name ?? delivery.sourcePoiId
+        : 'the field';
+      this.addReportLog(
+        `${npc.name} delivered ${deliveredItems.join(', ')} from ${sourceName} to ${destinationPoi.name}.`,
+      );
+    }
+
+    npc.pendingDelivery = undefined;
     return true;
   }
 
@@ -1128,6 +1213,10 @@ export class GameEngine {
     if (this.state.npcs.length === 0) return;
 
     const npc = this.random.choice(this.state.npcs);
+
+    if (this.processNpcDelivery(npc)) {
+      return;
+    }
     let profile = this.getCraftProfileForJob(npc.job);
 
     // Talent gate: if an NPC lacks the core talent for a job, they simply can't do that work.

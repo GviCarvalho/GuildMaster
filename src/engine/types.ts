@@ -80,6 +80,13 @@ export interface NPC {
   // Phase 2: Inventory for trading
   inventory?: Inventory;
 
+  // Pending logistics delivery (hauled items heading to a destination stockpile)
+  pendingDelivery?: {
+    destinationPoiId: PoiId;
+    sourcePoiId?: PoiId;
+    cargo: InventoryItem[];
+  };
+
   // Chemistry/DNA sandbox state
   chemistry?: {
     body: Mix;
