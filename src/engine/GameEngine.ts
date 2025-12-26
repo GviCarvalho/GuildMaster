@@ -187,24 +187,27 @@ export class GameEngine {
     const catalog = this.itemRegistry.list();
 
     const baseSeeds: Record<string, number> = {
-      wood: 30,
-      stone: 30,
-      ore: 18,
-      fuel: 16,
-      drink: 40,
-      food: 34,
-      organic: 14,
-      fiber: 20,
-      balancing: 8,
-      metal: 12,
+      wood: 18,
+      stone: 18,
+      ore: 10,
+      fuel: 8,
+      drink: 28,
+      food: 26,
+      organic: 12,
+      fiber: 14,
+      balancing: 6,
+      metal: 8,
     };
 
     const poiSeeds: Record<PoiId, Record<string, number>> = {
       'guild-hall': { ...baseSeeds },
       market: { ...baseSeeds, fiber: 26 },
-      mine: { ...baseSeeds, ore: 40, metal: 20, stone: 42, fuel: 24 },
-      forest: { ...baseSeeds, wood: 55, drink: 30, organic: 40, fiber: 35 },
-      tavern: { ...baseSeeds, food: 50, drink: 60, wood: 12, stone: 10, fiber: 18 },
+      mine: { ore: 50, metal: 20, stone: 56, fuel: 30 },
+      forest: { wood: 70, drink: 30, organic: 40, fiber: 35, food: 30 },
+      tavern: { ...baseSeeds, food: 60, drink: 70, wood: 12, stone: 10, fiber: 18 },
+      shore: { drink: 70, food: 35, organic: 30 },
+      farmstead: { food: 55, organic: 55, drink: 25, fiber: 25 },
+      ranch: { fiber: 60, organic: 45, food: 20 },
     };
 
     for (const [poiId, seeds] of Object.entries(poiSeeds)) {
@@ -949,13 +952,13 @@ export class GameEngine {
     _stockpile: Stockpile,
     poiId: PoiId,
   ): boolean {
-    const jobConfig: Partial<Record<NPC['job'], { sourcePoi: PoiId; tags: string[][]; activity: string }>> = {
-      Miner: { sourcePoi: 'mine', tags: [['ore', 'metal', 'stone', 'fuel']], activity: 'hauled resources from' },
-      Lumberjack: { sourcePoi: 'forest', tags: [['wood']], activity: 'felled timber in' },
-      Farmer: { sourcePoi: 'market', tags: [['food', 'organic'], ['drink']], activity: 'collected produce at' },
-      Rancher: { sourcePoi: 'market', tags: [['fiber', 'food', 'organic']], activity: 'brought ranch goods from' },
-      Fisher: { sourcePoi: 'tavern', tags: [['food', 'drink', 'organic']], activity: 'hauled a catch from' },
-      Hunter: { sourcePoi: 'forest', tags: [['organic', 'food', 'fiber']], activity: 'returned with game from' },
+    const jobConfig: Partial<Record<NPC['job'], { sourcePois: PoiId[]; tags: string[][]; activity: string }>> = {
+      Miner: { sourcePois: ['mine'], tags: [['ore', 'metal', 'stone', 'fuel']], activity: 'hauled resources from' },
+      Lumberjack: { sourcePois: ['forest'], tags: [['wood']], activity: 'felled timber in' },
+      Farmer: { sourcePois: ['farmstead', 'market'], tags: [['food', 'organic'], ['drink']], activity: 'collected produce at' },
+      Rancher: { sourcePois: ['ranch', 'farmstead'], tags: [['fiber', 'food', 'organic']], activity: 'brought ranch goods from' },
+      Fisher: { sourcePois: ['shore', 'tavern'], tags: [['food', 'drink', 'organic']], activity: 'hauled a catch from' },
+      Hunter: { sourcePois: ['forest'], tags: [['organic', 'food', 'fiber']], activity: 'returned with game from' },
     };
 
     const config = npc.job ? jobConfig[npc.job] : undefined;
@@ -971,15 +974,22 @@ export class GameEngine {
     const destinationStockpile = getPoiStockpile(this.stockpilesByPoi, destinationPoiId);
     const tagPool = withUnique(config.tags.flat());
     let picked: ItemDefinition | null = null;
+    let usedSource: (typeof sources)[number] | null = null;
 
-    const attemptedTags = new Set<string>();
-    while (attemptedTags.size < tagPool.length && !picked) {
-      const tag = this.random.choice(tagPool.filter((t) => !attemptedTags.has(t)));
-      attemptedTags.add(tag);
-      picked = stockPickByTag(sourceStockpile, this.itemRegistry, tag, this.random);
+    for (const source of sources) {
+      const attemptedTags = new Set<string>();
+      while (attemptedTags.size < tagPool.length && !picked) {
+        const tag = this.random.choice(tagPool.filter((t) => !attemptedTags.has(t)));
+        attemptedTags.add(tag);
+        picked = stockPickByTag(source.stockpile, this.itemRegistry, tag, this.random);
+        if (picked) {
+          usedSource = source;
+        }
+      }
+      if (picked) break;
     }
 
-    if (!picked) {
+    if (!picked || !usedSource) {
       return false;
     }
 

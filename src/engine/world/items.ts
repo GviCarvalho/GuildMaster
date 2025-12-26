@@ -72,6 +72,7 @@ export function createSeedItemRegistry(): ItemRegistry {
     { id: 'raw-coal', name: 'Coal', mix: { CARBON: 0.5, ORE_COAL: 0.5, COAL: 0.3 } },
     { id: 'raw-salt', name: 'Salt', mix: { SALT: 0.8 } },
     { id: 'raw-water', name: 'Water', mix: { H2O: 1 } },
+    { id: 'raw-fish', name: 'Fresh Fish', mix: { PROTEIN: 0.45, H2O: 0.4, FAT: 0.15 } },
     { id: 'raw-wool', name: 'Raw Wool', mix: { FIBER: 0.7, PROTEIN: 0.2, H2O: 0.1 } },
     { id: 'raw-cotton', name: 'Cotton Bale', mix: { FIBER: 0.8, H2O: 0.15 } },
     { id: 'raw-leather', name: 'Raw Leather', mix: { PROTEIN: 0.6, FAT: 0.2, FIBER: 0.1, H2O: 0.1 } },
