@@ -1,5 +1,5 @@
 import { mixAdd, mixMerge, mixScale, runReactor, type Mix, type ReactionRule } from '../dna';
-import type { CraftIntent, CraftProcess } from '../types';
+import type { CraftProcess } from '../types';
 import type { ItemDefinition, ItemRegistry } from '../world/items';
 
 export function combineMixes(items: ItemDefinition[], weights?: number[]): Mix {

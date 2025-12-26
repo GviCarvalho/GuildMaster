@@ -749,7 +749,7 @@ export class GameEngine {
 
     const item = this.random.choice(candidates);
 
-    const tagForPrice = item.tags?.find((t) => desiredTags.includes(t)) ?? desiredTags[0];
+    const tagForPrice = item.tags?.find((t: string) => desiredTags.includes(t)) ?? desiredTags[0];
     const base = tagForPrice === 'tool' ? 25 : tagForPrice === 'material' ? 15 : 10;
     const price = Math.max(1, Math.round(base * this.getPriceMultiplier(poiId, tagForPrice)));
     if (buyer.money < price) return;
@@ -773,31 +773,32 @@ export class GameEngine {
           requiredTalent: 'forge',
           intent: this.random.next() > 0.6 ? 'weapon' : 'tool',
           process: 'forge',
-          requiredTags: [['ore', 'metal'], ['wood', 'organic'], ['fuel']],
+          requiredTags: [['metal', 'ore'], ['fuel'], ['wood', 'organic', 'fiber']],
+          optionalTags: [['metal', 'ore'], ['wood', 'organic']],
         };
       case 'Artisan':
         return {
           requiredTalent: 'craft',
           intent: this.random.next() > 0.55 ? 'tool' : 'material',
           process: 'refine',
-          requiredTags: [['wood', 'fiber', 'organic'], ['stone', 'wood']],
-          optionalTags: [['fuel']],
+          requiredTags: [['wood', 'fiber', 'organic'], ['wood', 'fiber', 'organic'], ['stone', 'wood']],
+          optionalTags: [['fuel'], ['organic', 'fiber']],
         };
       case 'Tailor':
         return {
           requiredTalent: 'tailor',
           intent: 'material',
           process: 'cook',
-          requiredTags: [['fiber'], ['fiber']],
-          optionalTags: [['organic']],
+          requiredTags: [['fiber'], ['fiber', 'organic']],
+          optionalTags: [['organic', 'material'], ['fiber']],
         };
       case 'Builder':
         return {
           requiredTalent: 'build',
           intent: this.random.next() > 0.4 ? 'material' : 'tool',
           process: 'refine',
-          requiredTags: [['stone'], ['wood', 'organic']],
-          optionalTags: [['fuel']],
+          requiredTags: [['stone'], ['wood', 'organic'], ['wood', 'fiber', 'organic']],
+          optionalTags: [['fuel'], ['stone', 'wood']],
         };
       case 'Weaver':
         return {
@@ -805,31 +806,31 @@ export class GameEngine {
           intent: 'material',
           process: 'cook',
           requiredTags: [['fiber'], ['fiber', 'organic']],
-          optionalTags: [['organic']],
+          optionalTags: [['organic', 'fiber']],
         };
       case 'Lumberjack':
         return {
           requiredTalent: 'harvest_wood',
           intent: 'material',
           process: 'refine',
-          requiredTags: [['wood'], ['wood']],
-          optionalTags: [['fuel']],
+          requiredTags: [['wood'], ['wood', 'organic']],
+          optionalTags: [['fuel', 'wood'], ['organic']],
         };
       case 'Farmer':
         return {
           requiredTalent: 'grow_food',
           intent: 'food',
           process: 'cook',
-          requiredTags: [['food']],
-          optionalTags: [['drink']],
+          requiredTags: [['food', 'organic'], ['drink']],
+          optionalTags: [['food', 'organic'], ['drink', 'organic']],
         };
       case 'Rancher':
         return {
           requiredTalent: 'raise_animals',
           intent: this.random.next() > 0.5 ? 'food' : 'drink',
           process: this.random.next() > 0.4 ? 'cook' : 'brew',
-          requiredTags: [['food', 'organic'], ['drink']],
-          optionalTags: [['fiber', 'organic']],
+          requiredTags: [['food', 'organic'], ['drink'], ['fiber', 'organic']],
+          optionalTags: [['organic'], ['fiber', 'organic']],
         };
       case 'Alchemist':
       case 'Herbalist':
@@ -837,8 +838,8 @@ export class GameEngine {
           requiredTalent: 'alchemy',
           intent: this.random.next() > 0.5 ? 'medicine' : 'drink',
           process: 'brew',
-          requiredTags: [['organic'], ['balancing', 'stone']],
-          optionalTags: [['ore', 'metal'], ['drink']],
+          requiredTags: [['organic'], ['balancing', 'drink', 'medicine', 'organic']],
+          optionalTags: [['drink', 'medicine', 'organic'], ['balancing', 'organic']],
         };
       case 'Miner':
         return {
@@ -853,16 +854,16 @@ export class GameEngine {
           requiredTalent: 'hunt',
           intent: this.random.next() > 0.4 ? 'food' : 'material',
           process: 'cook',
-          requiredTags: [['organic']],
-          optionalTags: [['fiber'], ['drink']],
+          requiredTags: [['organic'], ['food', 'organic']],
+          optionalTags: [['fiber'], ['drink', 'organic']],
         };
       case 'Fisher':
         return {
           requiredTalent: 'fish',
           intent: 'food',
           process: 'cook',
-          requiredTags: [['food', 'drink']],
-          optionalTags: [['organic']],
+          requiredTags: [['food', 'drink', 'organic'], ['food', 'organic']],
+          optionalTags: [['drink', 'organic']],
         };
       default:
         return null;
@@ -941,6 +942,62 @@ export class GameEngine {
     }
 
     return selections.length >= 2 ? selections : null;
+  }
+
+  private performGatheringJob(
+    npc: NPC,
+    stockpile: Stockpile,
+    poiId: PoiId,
+  ): boolean {
+    let predicate: (item: ItemDefinition) => boolean;
+    let labelPrefix: string;
+    let activity: string;
+
+    switch (npc.job) {
+      case 'Miner':
+        predicate = (item) => item.tags?.some((tag) => tag === 'ore' || tag === 'stone') ?? false;
+        labelPrefix = 'Mined ore';
+        activity = 'mined';
+        break;
+      case 'Lumberjack':
+        predicate = (item) => item.tags?.includes('wood') ?? false;
+        labelPrefix = 'Harvested wood';
+        activity = 'felled timber and hauled';
+        break;
+      case 'Farmer':
+        predicate = (item) => Boolean(item.tags?.includes('food') && item.tags?.includes('organic'));
+        labelPrefix = 'Harvested crop';
+        activity = 'harvested produce and stocked';
+        break;
+      case 'Rancher':
+        predicate = (item) =>
+          Boolean((item.tags?.includes('fiber') || item.tags?.includes('food')) && item.tags?.includes('organic'));
+        labelPrefix = 'Ranch yield';
+        activity = 'gathered ranch goods and stored';
+        break;
+      case 'Fisher':
+        predicate = (item) => Boolean(item.tags?.includes('food') && (item.tags?.includes('organic') || item.tags?.includes('drink')));
+        labelPrefix = 'Fresh catch';
+        activity = 'hauled in a catch and delivered';
+        break;
+      case 'Hunter':
+        predicate = (item) => Boolean(item.tags?.includes('organic') && (item.tags?.includes('food') || item.tags?.includes('fiber')));
+        labelPrefix = 'Hunted game';
+        activity = 'brought back game and stocked';
+        break;
+      default:
+        return false;
+    }
+
+    const gatheredId = this.ensureProceduralItemId(labelPrefix, predicate);
+    stockAdd(stockpile, gatheredId, 1);
+    const gatheredDef = this.itemRegistry.getItem(gatheredId);
+    const described = gatheredDef?.displayName ?? gatheredDef?.name ?? gatheredId;
+    this.addReportLog(`${npc.name} ${activity} ${described} at ${poiId}.`);
+
+    modifyNeed(npc, 'hunger', -5);
+    modifyNeed(npc, 'fun', -2);
+    return true;
   }
 
   private collectFromStockpile(npc: NPC, tags: string[][], stockpile: Stockpile, poiId: PoiId): void {
@@ -1157,12 +1214,18 @@ export class GameEngine {
     }
 
     if (!selections) {
+      if (this.performGatheringJob(npc, stockpile, poiId)) {
+        return;
+      }
       this.collectFromStockpile(npc, profile.requiredTags, stockpile, poiId);
       return;
     }
 
     const inputs = selections.map((s) => s.definition);
     if (inputs.length < 2) {
+      if (this.performGatheringJob(npc, stockpile, poiId)) {
+        return;
+      }
       this.collectFromStockpile(npc, profile.requiredTags, stockpile, poiId);
       return;
     }
