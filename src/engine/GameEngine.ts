@@ -773,31 +773,32 @@ export class GameEngine {
           requiredTalent: 'forge',
           intent: this.random.next() > 0.6 ? 'weapon' : 'tool',
           process: 'forge',
-          requiredTags: [['ore', 'metal'], ['wood', 'organic'], ['fuel']],
+          requiredTags: [['metal', 'ore'], ['fuel'], ['wood', 'organic', 'fiber']],
+          optionalTags: [['metal', 'ore'], ['wood', 'organic']],
         };
       case 'Artisan':
         return {
           requiredTalent: 'craft',
           intent: this.random.next() > 0.55 ? 'tool' : 'material',
           process: 'refine',
-          requiredTags: [['wood', 'fiber', 'organic'], ['stone', 'wood']],
-          optionalTags: [['fuel']],
+          requiredTags: [['wood', 'fiber', 'organic'], ['wood', 'fiber', 'organic'], ['stone', 'wood']],
+          optionalTags: [['fuel'], ['organic', 'fiber']],
         };
       case 'Tailor':
         return {
           requiredTalent: 'tailor',
           intent: 'material',
           process: 'cook',
-          requiredTags: [['fiber'], ['fiber']],
-          optionalTags: [['organic']],
+          requiredTags: [['fiber'], ['fiber', 'organic']],
+          optionalTags: [['organic', 'material'], ['fiber']],
         };
       case 'Builder':
         return {
           requiredTalent: 'build',
           intent: this.random.next() > 0.4 ? 'material' : 'tool',
           process: 'refine',
-          requiredTags: [['stone'], ['wood', 'organic']],
-          optionalTags: [['fuel']],
+          requiredTags: [['stone'], ['wood', 'organic'], ['wood', 'fiber', 'organic']],
+          optionalTags: [['fuel'], ['stone', 'wood']],
         };
       case 'Weaver':
         return {
@@ -805,31 +806,31 @@ export class GameEngine {
           intent: 'material',
           process: 'cook',
           requiredTags: [['fiber'], ['fiber', 'organic']],
-          optionalTags: [['organic']],
+          optionalTags: [['organic', 'fiber']],
         };
       case 'Lumberjack':
         return {
           requiredTalent: 'harvest_wood',
           intent: 'material',
           process: 'refine',
-          requiredTags: [['wood'], ['wood']],
-          optionalTags: [['fuel']],
+          requiredTags: [['wood'], ['wood', 'organic']],
+          optionalTags: [['fuel', 'wood'], ['organic']],
         };
       case 'Farmer':
         return {
           requiredTalent: 'grow_food',
           intent: 'food',
           process: 'cook',
-          requiredTags: [['food']],
-          optionalTags: [['drink']],
+          requiredTags: [['food', 'organic'], ['drink']],
+          optionalTags: [['food', 'organic'], ['drink', 'organic']],
         };
       case 'Rancher':
         return {
           requiredTalent: 'raise_animals',
           intent: this.random.next() > 0.5 ? 'food' : 'drink',
           process: this.random.next() > 0.4 ? 'cook' : 'brew',
-          requiredTags: [['food', 'organic'], ['drink']],
-          optionalTags: [['fiber', 'organic']],
+          requiredTags: [['food', 'organic'], ['drink'], ['fiber', 'organic']],
+          optionalTags: [['organic'], ['fiber', 'organic']],
         };
       case 'Alchemist':
       case 'Herbalist':
@@ -837,8 +838,8 @@ export class GameEngine {
           requiredTalent: 'alchemy',
           intent: this.random.next() > 0.5 ? 'medicine' : 'drink',
           process: 'brew',
-          requiredTags: [['organic'], ['balancing', 'stone']],
-          optionalTags: [['ore', 'metal'], ['drink']],
+          requiredTags: [['organic'], ['balancing', 'drink', 'medicine', 'organic']],
+          optionalTags: [['drink', 'medicine', 'organic'], ['balancing', 'organic']],
         };
       case 'Miner':
         return {
@@ -853,16 +854,16 @@ export class GameEngine {
           requiredTalent: 'hunt',
           intent: this.random.next() > 0.4 ? 'food' : 'material',
           process: 'cook',
-          requiredTags: [['organic']],
-          optionalTags: [['fiber'], ['drink']],
+          requiredTags: [['organic'], ['food', 'organic']],
+          optionalTags: [['fiber'], ['drink', 'organic']],
         };
       case 'Fisher':
         return {
           requiredTalent: 'fish',
           intent: 'food',
           process: 'cook',
-          requiredTags: [['food', 'drink']],
-          optionalTags: [['organic']],
+          requiredTags: [['food', 'drink', 'organic'], ['food', 'organic']],
+          optionalTags: [['drink', 'organic']],
         };
       default:
         return null;
