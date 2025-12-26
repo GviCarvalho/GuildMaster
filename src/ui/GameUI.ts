@@ -11,8 +11,9 @@ export class GameUI {
   private renderThrottleMs: number = 250;
   private pendingRender: boolean = false;
   private engineToggle?: () => void;
-  private mapWindow: Window | null = null;
   private latestAsciiMap = '';
+  private activeTab: 'dashboard' | 'map' = 'dashboard';
+  private lastState?: GameState;
 
   constructor(rootElement: HTMLElement) {
     this.rootElement = rootElement;
@@ -24,8 +25,14 @@ export class GameUI {
           this.questCompleteHandler?.(target.dataset.questId);
         } else if (target.dataset.action === 'toggle-simulation') {
           this.engineToggle?.();
-        } else if (target.dataset.action === 'open-map-tab') {
-          this.openMapTab(this.latestAsciiMap);
+        } else if (target.dataset.tab) {
+          const tab = target.dataset.tab as 'dashboard' | 'map';
+          if (tab !== this.activeTab) {
+            this.activeTab = tab;
+            if (this.lastState && this.questCompleteHandler) {
+              this.render(this.lastState, this.questCompleteHandler, this.engineToggle);
+            }
+          }
         }
       }
     });
@@ -36,6 +43,7 @@ export class GameUI {
     onQuestComplete: (questId: string) => void,
     onToggleSimulation?: () => void
   ): void {
+    this.lastState = state;
     this.questCompleteHandler = onQuestComplete;
     this.engineToggle = onToggleSimulation;
 
@@ -68,7 +76,6 @@ export class GameUI {
     const btnTitle = state.simRunning ? 'Pause simulation' : 'Start simulation';
     const asciiMap = this.renderAsciiMap(state);
     this.latestAsciiMap = asciiMap;
-    this.updateMapWindow(asciiMap);
 
     this.rootElement.innerHTML = `
       <div class="gm-stage">
@@ -84,6 +91,12 @@ export class GameUI {
 
           <!-- Center room -->
           <main class="gm-room">
+            <div class="gm-tabs" role="tablist" aria-label="Views">
+              <button class="gm-tab-btn ${this.activeTab === 'dashboard' ? 'gm-tab-btn-active' : ''}" data-tab="dashboard" role="tab" aria-selected="${this.activeTab === 'dashboard'}">Dashboard</button>
+              <button class="gm-tab-btn ${this.activeTab === 'map' ? 'gm-tab-btn-active' : ''}" data-tab="map" role="tab" aria-selected="${this.activeTab === 'map'}">Full map</button>
+            </div>
+
+            <div class="gm-tab-panel ${this.activeTab === 'dashboard' ? 'gm-tab-panel-active' : ''}" role="tabpanel" aria-hidden="${this.activeTab !== 'dashboard'}">
             <div class="gm-hud">
               <div class="gm-hud-card">
                 <div class="gm-hud-title">Day</div>
@@ -140,19 +153,18 @@ export class GameUI {
                 <div class="gm-map-header">
                   <div>
                     <h2>City Map (ASCII)</h2>
-                    <div class="gm-small">
-                      NPCs wander between points of interest. Letters = NPC initials, capitals = POIs, > = someone en route, * = crowded tile.
-                    </div>
-                  </div>
-                  <div class="gm-map-legend gm-small">
-                    <div><span class="gm-map-key gm-road"></span> Road</div>
-                    <div><span class="gm-map-key gm-building"></span> Building</div>
-                    <div><span class="gm-map-key gm-water"></span> Water</div>
-                    <button class="gm-map-open" data-action="open-map-tab" title="Open map in a new tab">Open full map</button>
-                  </div>
+                <div class="gm-small">
+                  NPCs wander between points of interest. Letters = NPC initials, capitals = POIs, > = someone en route, * = crowded tile.
                 </div>
-                <pre class="gm-ascii-map" aria-label="ASCII city map">${asciiMap}</pre>
-              </section>
+              </div>
+              <div class="gm-map-legend gm-small">
+                <div><span class="gm-map-key gm-road"></span> Road</div>
+                <div><span class="gm-map-key gm-building"></span> Building</div>
+                <div><span class="gm-map-key gm-water"></span> Water</div>
+              </div>
+            </div>
+            <pre class="gm-ascii-map" aria-label="ASCII city map">${asciiMap}</pre>
+          </section>
 
               <section class="gm-card">
                 <h2>Quest Board</h2>
@@ -184,6 +196,24 @@ export class GameUI {
                       .join('')}
                   </div>
                 </div>
+              </section>
+            </div>
+            </div>
+
+            <div class="gm-tab-panel ${this.activeTab === 'map' ? 'gm-tab-panel-active' : ''}" role="tabpanel" aria-hidden="${this.activeTab !== 'map'}">
+              <section class="gm-card gm-full-map-card">
+                <div class="gm-map-header">
+                  <div>
+                    <h2>City Map (full)</h2>
+                    <div class="gm-small">Live ASCII view without scrolling the main dashboard.</div>
+                  </div>
+                  <div class="gm-map-legend gm-small">
+                    <div><span class="gm-map-key gm-road"></span> Road</div>
+                    <div><span class="gm-map-key gm-building"></span> Building</div>
+                    <div><span class="gm-map-key gm-water"></span> Water</div>
+                  </div>
+                </div>
+                <pre class="gm-ascii-map gm-ascii-map-full" aria-label="Full ASCII city map">${asciiMap}</pre>
               </section>
             </div>
           </main>
@@ -307,86 +337,4 @@ export class GameUI {
     return rows.join('\n');
   }
 
-  /**
-   * Open or refresh the full-size map window for easier viewing.
-   */
-  private openMapTab(content: string): void {
-    if (this.mapWindow && this.mapWindow.closed) {
-      this.mapWindow = null;
-    }
-
-    if (!this.mapWindow) {
-      this.mapWindow = window.open('', 'guildmaster-map', 'noopener,noreferrer');
-
-      if (!this.mapWindow) {
-        return;
-      }
-
-      const doc = this.mapWindow.document;
-      doc.open();
-      doc.write(`
-        <!doctype html>
-        <html lang="en">
-          <head>
-            <meta charset="UTF-8" />
-            <title>GuildMaster Map</title>
-            <style>
-              :root {
-                color-scheme: dark;
-              }
-              body {
-                margin: 0;
-                background: #05070b;
-                color: #aef7b0;
-                font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-                display: grid;
-                grid-template-rows: auto 1fr;
-                min-height: 100vh;
-              }
-              header {
-                padding: 14px 18px 8px 18px;
-                color: rgba(255,255,255,0.78);
-                font-weight: 700;
-                letter-spacing: 0.02em;
-                background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.35));
-                border-bottom: 1px solid rgba(255,255,255,0.08);
-                position: sticky;
-                top: 0;
-              }
-              pre {
-                margin: 0;
-                padding: 18px;
-                white-space: pre;
-                font-size: 12px;
-                line-height: 1.2;
-                overflow: auto;
-              }
-            </style>
-          </head>
-          <body>
-            <header>GuildMaster City Map (live)</header>
-            <pre id="gm-map-view" aria-label="Full ASCII city map"></pre>
-          </body>
-        </html>
-      `);
-      doc.close();
-    }
-
-    this.updateMapWindow(content);
-  }
-
-  /**
-   * Push the latest ASCII map into the detached map window.
-   */
-  private updateMapWindow(content: string): void {
-    if (!this.mapWindow || this.mapWindow.closed) {
-      this.mapWindow = null;
-      return;
-    }
-
-    const target = this.mapWindow.document.getElementById('gm-map-view') as HTMLPreElement | null;
-    if (target) {
-      target.textContent = content;
-    }
-  }
 }
