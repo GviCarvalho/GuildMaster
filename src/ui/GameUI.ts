@@ -2,6 +2,7 @@
  * UI rendering and interaction module
  */
 import type { GameState } from '../engine';
+import { TileType } from '../engine/world/map';
 
 export class GameUI {
   private rootElement: HTMLElement;
@@ -10,6 +11,8 @@ export class GameUI {
   private renderThrottleMs: number = 250;
   private pendingRender: boolean = false;
   private engineToggle?: () => void;
+  private mapWindow: Window | null = null;
+  private latestAsciiMap = '';
 
   constructor(rootElement: HTMLElement) {
     this.rootElement = rootElement;
@@ -21,6 +24,8 @@ export class GameUI {
           this.questCompleteHandler?.(target.dataset.questId);
         } else if (target.dataset.action === 'toggle-simulation') {
           this.engineToggle?.();
+        } else if (target.dataset.action === 'open-map-tab') {
+          this.openMapTab(this.latestAsciiMap);
         }
       }
     });
@@ -61,6 +66,9 @@ export class GameUI {
       ? 'gm-action-btn gm-action-btn-active'
       : 'gm-action-btn';
     const btnTitle = state.simRunning ? 'Pause simulation' : 'Start simulation';
+    const asciiMap = this.renderAsciiMap(state);
+    this.latestAsciiMap = asciiMap;
+    this.updateMapWindow(asciiMap);
 
     this.rootElement.innerHTML = `
       <div class="gm-stage">
@@ -128,6 +136,24 @@ export class GameUI {
                 </div>
               </section>
 
+              <section class="gm-card gm-map-card">
+                <div class="gm-map-header">
+                  <div>
+                    <h2>City Map (ASCII)</h2>
+                    <div class="gm-small">
+                      NPCs wander between points of interest. Letters = NPC initials, capitals = POIs, > = someone en route, * = crowded tile.
+                    </div>
+                  </div>
+                  <div class="gm-map-legend gm-small">
+                    <div><span class="gm-map-key gm-road"></span> Road</div>
+                    <div><span class="gm-map-key gm-building"></span> Building</div>
+                    <div><span class="gm-map-key gm-water"></span> Water</div>
+                    <button class="gm-map-open" data-action="open-map-tab" title="Open map in a new tab">Open full map</button>
+                  </div>
+                </div>
+                <pre class="gm-ascii-map" aria-label="ASCII city map">${asciiMap}</pre>
+              </section>
+
               <section class="gm-card">
                 <h2>Quest Board</h2>
                 <div class="gm-scroll" style="max-height: 100%;">
@@ -189,5 +215,178 @@ export class GameUI {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Build a downsampled ASCII map representing the city grid and NPC movement.
+   */
+  private renderAsciiMap(state: GameState): string {
+    const map = state.worldMap;
+
+    // Downsample to keep the ASCII map compact while remaining readable.
+    const stride = 2;
+    const bucketsX = Math.ceil(map.width / stride);
+    const bucketsY = Math.ceil(map.height / stride);
+
+    const npcBuckets = new Map<
+      string,
+      { count: number; label: string; hasTarget: boolean }
+    >();
+
+    state.npcs.forEach((npc) => {
+      const bx = Math.floor(npc.pos.x / stride);
+      const by = Math.floor(npc.pos.y / stride);
+      const key = `${bx},${by}`;
+      const existing = npcBuckets.get(key);
+      const baseLabel = npc.name.charAt(0).toUpperCase() || '@';
+      if (existing) {
+        npcBuckets.set(key, {
+          count: existing.count + 1,
+          label: existing.count + 1 > 1 ? '*' : existing.label,
+          hasTarget: existing.hasTarget || Boolean(npc.targetPos),
+        });
+      } else {
+        npcBuckets.set(key, {
+          count: 1,
+          label: baseLabel,
+          hasTarget: Boolean(npc.targetPos),
+        });
+      }
+    });
+
+    const poiBuckets = new Map<string, string>();
+    map.getPOIs().forEach((poi) => {
+      const bx = Math.floor(poi.pos.x / stride);
+      const by = Math.floor(poi.pos.y / stride);
+      const key = `${bx},${by}`;
+      poiBuckets.set(key, poi.name.charAt(0).toUpperCase());
+    });
+
+    const rows: string[] = [];
+
+    for (let by = 0; by < bucketsY; by++) {
+      let row = '';
+      for (let bx = 0; bx < bucketsX; bx++) {
+        const key = `${bx},${by}`;
+
+        const npcMarker = npcBuckets.get(key);
+        if (npcMarker) {
+          row += npcMarker.count > 1
+            ? '*'
+            : npcMarker.hasTarget
+              ? '>'
+              : npcMarker.label;
+          continue;
+        }
+
+        const poiMarker = poiBuckets.get(key);
+        if (poiMarker) {
+          row += poiMarker;
+          continue;
+        }
+
+        const tile = map.getTile(bx * stride, by * stride);
+        switch (tile?.type) {
+          case TileType.Road:
+            row += '·';
+            break;
+          case TileType.Building:
+            row += '#';
+            break;
+          case TileType.Water:
+            row += '~';
+            break;
+          default:
+            row += ' ';
+            break;
+        }
+      }
+      rows.push(row);
+    }
+
+    return rows.join('\n');
+  }
+
+  /**
+   * Open or refresh the full-size map window for easier viewing.
+   */
+  private openMapTab(content: string): void {
+    if (this.mapWindow && this.mapWindow.closed) {
+      this.mapWindow = null;
+    }
+
+    if (!this.mapWindow) {
+      this.mapWindow = window.open('', 'guildmaster-map', 'noopener,noreferrer');
+
+      if (!this.mapWindow) {
+        return;
+      }
+
+      const doc = this.mapWindow.document;
+      doc.open();
+      doc.write(`
+        <!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <title>GuildMaster Map</title>
+            <style>
+              :root {
+                color-scheme: dark;
+              }
+              body {
+                margin: 0;
+                background: #05070b;
+                color: #aef7b0;
+                font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+                display: grid;
+                grid-template-rows: auto 1fr;
+                min-height: 100vh;
+              }
+              header {
+                padding: 14px 18px 8px 18px;
+                color: rgba(255,255,255,0.78);
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.35));
+                border-bottom: 1px solid rgba(255,255,255,0.08);
+                position: sticky;
+                top: 0;
+              }
+              pre {
+                margin: 0;
+                padding: 18px;
+                white-space: pre;
+                font-size: 12px;
+                line-height: 1.2;
+                overflow: auto;
+              }
+            </style>
+          </head>
+          <body>
+            <header>GuildMaster City Map (live)</header>
+            <pre id="gm-map-view" aria-label="Full ASCII city map"></pre>
+          </body>
+        </html>
+      `);
+      doc.close();
+    }
+
+    this.updateMapWindow(content);
+  }
+
+  /**
+   * Push the latest ASCII map into the detached map window.
+   */
+  private updateMapWindow(content: string): void {
+    if (!this.mapWindow || this.mapWindow.closed) {
+      this.mapWindow = null;
+      return;
+    }
+
+    const target = this.mapWindow.document.getElementById('gm-map-view') as HTMLPreElement | null;
+    if (target) {
+      target.textContent = content;
+    }
   }
 }
