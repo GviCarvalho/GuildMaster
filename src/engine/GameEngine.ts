@@ -837,8 +837,8 @@ export class GameEngine {
           requiredTalent: 'alchemy',
           intent: this.random.next() > 0.5 ? 'medicine' : 'drink',
           process: 'brew',
-          requiredTags: [['organic'], ['balancing', 'stone']],
-          optionalTags: [['ore', 'metal'], ['drink']],
+          requiredTags: [['organic'], ['balancing', 'drink', 'medicine', 'organic']],
+          optionalTags: [['drink', 'medicine', 'organic'], ['balancing', 'organic']],
         };
       case 'Miner':
         return {
