@@ -1,0 +1,7 @@
+; Engine configuration file for GuildMaster
+; This project has been reset for a fresh Godot-based rebuild.
+
+config_version=5
+
+[application]
+config/name="GuildMaster"
