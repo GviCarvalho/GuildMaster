@@ -1,15 +1,11 @@
-# GuildMaster
+# SALLAND OS
 
-The repository has been cleaned to restart GuildMaster as a fresh Godot project. All previous web assets and build tooling have been removed so the game can be rebuilt entirely inside the Godot editor.
+Projeto reiniciado como uma simulação web estática baseada em HTML/CSS/JS puro. O canvas mostra NPCs coletando recursos, refinando, comercializando e reagindo a eventos; a barra lateral exibe estatísticas globais e o scanner contextual do cidadão sob o mouse.
 
-## Getting started with Godot
-1. Install Godot 4.x.
-2. Open this repository folder in Godot; the provided `project.godot` file will be detected automatically.
-3. Configure your scenes, scripts, and assets as you rebuild the game.
-4. Add export presets in the Godot editor when you are ready to produce builds.
+## Como executar
+1. Abra `index.html` diretamente no navegador, ou sirva a pasta raiz com um servidor estático (ex.: `python -m http.server`).
+2. Passe o mouse sobre um NPC para ver detalhes; use os botões da barra lateral para alternar velocidade ou reiniciar a simulação.
 
-## Repository layout
-- `project.godot` – minimal project definition to bootstrap the new Godot workspace.
-- `.gitignore` – ignores Godot import caches and other local artifacts.
-
-Feel free to create new directories (such as `scenes/`, `scripts/`, or `assets/`) as you start the new implementation.
+## Estrutura
+- `index.html` – página única contendo estilo, simulação e UI.
+- `.gitignore` – ignora arquivos temporários de SO e editor.
