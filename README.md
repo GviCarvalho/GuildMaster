@@ -1,15 +1,16 @@
-# GuildMaster
+# SALLAND OS
 
-The repository has been cleaned to restart GuildMaster as a fresh Godot project. All previous web assets and build tooling have been removed so the game can be rebuilt entirely inside the Godot editor.
+Projeto reorganizado em HTML/CSS/JS puro com estrutura modular para separar configuração, entidades, sistemas e laço principal. O canvas renderiza NPCs que coletam recursos, refinam, negociam e reagem a eventos, enquanto a barra lateral exibe estatísticas e scanner contextual.
 
-## Getting started with Godot
-1. Install Godot 4.x.
-2. Open this repository folder in Godot; the provided `project.godot` file will be detected automatically.
-3. Configure your scenes, scripts, and assets as you rebuild the game.
-4. Add export presets in the Godot editor when you are ready to produce builds.
+## Como executar
+1. Abra `index.html` diretamente no navegador, ou sirva a pasta raiz com um servidor estático (ex.: `python -m http.server`).
+2. Passe o mouse sobre um NPC para ver detalhes; use os botões da barra lateral para alternar velocidade ou reiniciar a simulação.
 
-## Repository layout
-- `project.godot` – minimal project definition to bootstrap the new Godot workspace.
-- `.gitignore` – ignores Godot import caches and other local artifacts.
-
-Feel free to create new directories (such as `scenes/`, `scripts/`, or `assets/`) as you start the new implementation.
+## Estrutura
+- `index.html` – ponto de entrada limpo que referencia os assets.
+- `css/style.css` – estilos extraídos da UI e canvas.
+- `js/config.js` – tabelas globais de jobs, traits e substâncias.
+- `js/core/brain.js` – cérebro Q-learning usado pela IA.
+- `js/systems/` – regras de fisiologia, personalidade e decisão.
+- `js/entities/` – entidades base, recursos/depósitos e NPC completo.
+- `js/main.js` – loop principal, renderização, UI e eventos.

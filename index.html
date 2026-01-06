@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>SALLAND: Estável (v6.1)</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="game-view">
+        <canvas id="canvas"></canvas>
+        <div id="overlay"></div>
+    </div>
+
+    <div id="sidebar">
+        <div style="text-align:center; font-size:18px; font-weight:bold; color:#f1c40f; margin-bottom:10px;">SALLAND OS</div>
+        <div id="error-msg" class="alert-box">ERRO CRÍTICO DETECTADO NO CONSOLE</div>
+
+        <div id="scanner-card">
+            <strong id="p-name" style="font-size:14px; color:#fff">...</strong>
+            <div id="p-job" style="color:#777; font-size:10px; margin-bottom:5px">...</div>
+
+            <div class="section-title">FISIOLOGIA</div>
+            <div id="p-bio"></div>
+
+            <div class="section-title">PSIQUE & TRAITS</div>
+            <div id="p-neuro"></div>
+            <div id="p-traits" style="margin-top:5px"></div>
+
+            <div class="section-title">ECONOMIA</div>
+            <div id="p-eco"></div>
+
+            <div style="margin-top:10px; font-size:10px; color:#fff">
+                Ação: <span id="p-action" style="color:#f1c40f; font-weight:bold">IDLE</span>
+            </div>
+        </div>
+
+        <div class="section-title">ESTATÍSTICAS</div>
+        <div class="stat-row"><span>População:</span> <span id="st-pop">0</span></div>
+        <div class="stat-row"><span>Mortes:</span> <span id="st-dead" style="color:#c0392b">0</span></div>
+        <div class="stat-row"><span>Crimes:</span> <span id="st-crime">0</span></div>
+
+        <button onclick="toggleSpeed()">⏩ Alternar Velocidade</button>
+        <button onclick="resetSim()" style="background:#c0392b">🔥 Hard Reset</button>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/core/brain.js"></script>
+    <script src="js/systems/bio.js"></script>
+    <script src="js/systems/neuro.js"></script>
+    <script src="js/systems/ai.js"></script>
+    <script src="js/entities/entity.js"></script>
+    <script src="js/entities/props.js"></script>
+    <script src="js/entities/npc.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
