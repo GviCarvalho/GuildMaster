@@ -3,439 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <title>SALLAND: Estável (v6.1)</title>
-    <style>
-        body { margin: 0; background: #0b0f14; color: #ecf0f1; font-family: 'Consolas', monospace; overflow: hidden; display: flex; }
-        #game-view { position: relative; width: 70vw; height: 100vh; }
-        canvas { display: block; width: 100%; height: 100%; background: #151b24; }
-        
-        #sidebar { width: 30vw; height: 100vh; background: #0f1519; padding: 15px; box-sizing: border-box; overflow-y: auto; border-left: 1px solid #333; }
-        
-        .float-text { position: absolute; font-weight: bold; font-size: 10px; animation: floatUp 1.5s forwards; pointer-events: none; text-shadow: 1px 1px 0 #000; }
-        @keyframes floatUp { to { opacity: 0; transform: translateY(-30px); } }
-
-        /* Scanner e UI */
-        #scanner-card { display: none; background: #1a222c; padding: 10px; border-left: 4px solid #f1c40f; margin-bottom: 20px; }
-        .section-title { color: #3498db; border-bottom: 1px solid #3498db; margin-top: 15px; font-size: 14px; font-weight: bold; }
-        .stat-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; color: #aaa; }
-        .tag { display: inline-block; padding: 2px 4px; border-radius: 3px; font-size: 9px; margin-right: 3px; color: #000; font-weight: bold; }
-        .bar-container { background: #222; height: 5px; width: 100%; margin-bottom: 5px; }
-        .bar-fill { height: 100%; transition: width 0.2s; }
-
-        button { width: 100%; padding: 8px; margin-top: 10px; background: #2c3e50; border: 1px solid #34495e; color: #fff; cursor: pointer; }
-        button:hover { background: #34495e; }
-        .alert-box { color: #e74c3c; font-size: 10px; margin-top: 5px; display: none; }
-    </style>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-
-<div id="game-view">
-    <canvas id="canvas"></canvas>
-    <div id="overlay"></div>
-</div>
-
-<div id="sidebar">
-    <div style="text-align:center; font-size:18px; font-weight:bold; color:#f1c40f; margin-bottom:10px;">SALLAND OS</div>
-    <div id="error-msg" class="alert-box">ERRO CRÍTICO DETECTADO NO CONSOLE</div>
-    
-    <div id="scanner-card">
-        <strong id="p-name" style="font-size:14px; color:#fff">...</strong>
-        <div id="p-job" style="color:#777; font-size:10px; margin-bottom:5px">...</div>
-        
-        <div class="section-title">FISIOLOGIA</div>
-        <div id="p-bio"></div>
-
-        <div class="section-title">PSIQUE & TRAITS</div>
-        <div id="p-neuro"></div>
-        <div id="p-traits" style="margin-top:5px"></div>
-
-        <div class="section-title">ECONOMIA</div>
-        <div id="p-eco"></div>
-        
-        <div style="margin-top:10px; font-size:10px; color:#fff">
-            Ação: <span id="p-action" style="color:#f1c40f; font-weight:bold">IDLE</span>
-        </div>
+    <div id="game-view">
+        <canvas id="canvas"></canvas>
+        <div id="overlay"></div>
     </div>
 
-    <div class="section-title">ESTATÍSTICAS</div>
-    <div class="stat-row"><span>População:</span> <span id="st-pop">0</span></div>
-    <div class="stat-row"><span>Mortes:</span> <span id="st-dead" style="color:#c0392b">0</span></div>
-    <div class="stat-row"><span>Crimes:</span> <span id="st-crime">0</span></div>
-    
-    <button onclick="toggleSpeed()">⏩ Alternar Velocidade</button>
-    <button onclick="resetSim()" style="background:#c0392b">🔥 Hard Reset</button>
-</div>
+    <div id="sidebar">
+        <div style="text-align:center; font-size:18px; font-weight:bold; color:#f1c40f; margin-bottom:10px;">SALLAND OS</div>
+        <div id="error-msg" class="alert-box">ERRO CRÍTICO DETECTADO NO CONSOLE</div>
 
-<script>
-    /** DADOS */
-    const JOBS = {
-        'FARMER': { label: 'Fazendeiro', icon: '🌾', color: '#27ae60', raw: 'TRIGO', prod: 'PAO', target: 'FIELD' },
-        'MINER':  { label: 'Mineiro',    icon: '⛏️', color: '#95a5a6', raw: 'MINERIO', prod: 'FERRO', target: 'ROCK' },
-        'LUMBER': { label: 'Lenhador',   icon: '🪓', color: '#e67e22', raw: 'MADEIRA', prod: 'TABUA', target: 'TREE' }
-    };
+        <div id="scanner-card">
+            <strong id="p-name" style="font-size:14px; color:#fff">...</strong>
+            <div id="p-job" style="color:#777; font-size:10px; margin-bottom:5px">...</div>
 
-    const SUBSTANCES = {
-        'H2O': { name: 'Água', color: '#3498db', max: 2000 },
-        'PROT': { name: 'Proteína', color: '#e74c3c', max: 600 },
-        'FAT': { name: 'Gordura', color: '#f39c12', max: 500 },
-        'GLUC': { name: 'Glicose', color: '#f1c40f', max: 100 },
-        'ATP': { name: 'Energia', color: '#2ecc71', max: 100 },
-        'ADR': { name: 'Adrenalina', color: '#c0392b' },
-        'CRT': { name: 'Cortisol', color: '#7f8c8d' },
-        'OXY': { name: 'Oxitocina', color: '#e056fd' }
-    };
+            <div class="section-title">FISIOLOGIA</div>
+            <div id="p-bio"></div>
 
-    const TRAITS = {
-        'BERSERKER': { cond: n=>n.neuro.ADR>60, color:'#c0392b' },
-        'COVARDE':   { cond: n=>n.neuro.CRT>60, color:'#7f8c8d' },
-        'PACIFISTA': { cond: n=>n.neuro.OXY>50, color:'#e056fd' }
-    };
+            <div class="section-title">PSIQUE & TRAITS</div>
+            <div id="p-neuro"></div>
+            <div id="p-traits" style="margin-top:5px"></div>
 
-    /** SISTEMAS */
-    class BioSystem {
-        static tick(npc) {
-            npc.bio.ATP -= 0.3; npc.bio.H2O -= 0.15; npc.bio.GLUC -= 0.1;
-            if(npc.bio.GLUC > 0) { npc.bio.GLUC -= 0.1; npc.bio.ATP += 0.6; }
-            else if(npc.bio.FAT > 0) { npc.bio.FAT -= 0.1; npc.bio.ATP += 0.4; } 
-            else if(npc.bio.PROT > 0) { npc.bio.PROT -= 0.3; npc.bio.ATP += 0.3; npc.neuro.CRT += 0.5; }
-            
-            npc.bio.ATP = Math.min(100, npc.bio.ATP);
-            npc.bio.GLUC = Math.min(100, npc.bio.GLUC);
+            <div class="section-title">ECONOMIA</div>
+            <div id="p-eco"></div>
 
-            if(npc.bio.H2O <= 0 || npc.bio.PROT <= 0) return false; 
-            return true;
-        }
-    }
+            <div style="margin-top:10px; font-size:10px; color:#fff">
+                Ação: <span id="p-action" style="color:#f1c40f; font-weight:bold">IDLE</span>
+            </div>
+        </div>
 
-    class NeuroSystem {
-        static tick(npc) {
-            npc.neuro.ADR = Math.max(0, npc.neuro.ADR - 0.5);
-            npc.neuro.CRT = Math.max(0, npc.neuro.CRT - 0.2);
-            npc.neuro.OXY = Math.max(0, npc.neuro.OXY - 0.1);
-            npc.activeTraits = [];
-            for(let k in TRAITS) if(TRAITS[k].cond(npc)) npc.activeTraits.push(k);
-        }
-    }
+        <div class="section-title">ESTATÍSTICAS</div>
+        <div class="stat-row"><span>População:</span> <span id="st-pop">0</span></div>
+        <div class="stat-row"><span>Mortes:</span> <span id="st-dead" style="color:#c0392b">0</span></div>
+        <div class="stat-row"><span>Crimes:</span> <span id="st-crime">0</span></div>
 
-    class AISystem {
-        static decide(npc) {
-            if(npc.bio.ATP < 20) return 'SLEEP';
-            if(npc.bio.GLUC < 20) return 'EAT';
-            if(npc.underAttack) return npc.activeTraits.includes('BERSERKER') ? 'FIGHT' : 'FLEE';
-            const job = JOBS[npc.job];
-            if(npc.inv[job.raw] > 2) return 'REFINE';
-            if(npc.inv[job.prod] > 2) return 'TRADE';
-            return 'GATHER';
-        }
-    }
+        <button onclick="toggleSpeed()">⏩ Alternar Velocidade</button>
+        <button onclick="resetSim()" style="background:#c0392b">🔥 Hard Reset</button>
+    </div>
 
-    /** ENTIDADES */
-    class Entity {
-        constructor(x, y) { this.x=x; this.y=y; }
-        dist(e) { return Math.hypot(this.x-e.x, this.y-e.y); }
-    }
-
-    class Resource extends Entity {
-        constructor(type, x, y) {
-            super(x, y); this.type=type; this.amt=50; this.ownerID=null;
-        }
-    }
-
-    class Stockpile extends Entity {
-        constructor(x, y, ownerID, color) {
-            super(x, y); this.ownerID=ownerID; this.color=color;
-        }
-    }
-
-    class NPC extends Entity {
-        constructor(id) {
-            super(Math.random()*800, Math.random()*600);
-            this.id = id; this.reset();
-        }
-
-        reset() {
-            this.alive = true;
-            this.job = Object.keys(JOBS)[Math.floor(Math.random()*3)];
-            this.bio = { H2O: 1500, PROT: 500, FAT: 400, GLUC: 80, ATP: 100 };
-            this.neuro = { ADR: 0, CRT: 0, OXY: 0 };
-            this.inv = { GOLD: 20, PAO: 0 };
-            Object.values(JOBS).forEach(j => { this.inv[j.raw]=0; this.inv[j.prod]=0; });
-            this.activeTraits = [];
-            this.action = 'IDLE';
-            this.target = null;
-            this.underAttack = false;
-            this.stockpile = new Stockpile(this.x, this.y, this.id, JOBS[this.job].color);
-            stockpiles.push(this.stockpile);
-        }
-
-        update() {
-            if(!this.alive) return;
-            this.alive = BioSystem.tick(this);
-            NeuroSystem.tick(this);
-            if(!this.alive) { worldStats.deaths++; return; }
-            this.underAttack = false;
-            if(Math.random() < 0.1) this.action = AISystem.decide(this);
-            this.execute();
-        }
-
-        // CORREÇÃO CRÍTICA: Movimento Seguro
-        moveTo(target, onReach) {
-            if (!target) return; // Segurança contra alvo nulo
-            
-            const d = this.dist(target);
-            const stopDist = 5; // Distância mínima para parar
-
-            if(d > stopDist) {
-                // Previne divisão por zero se eles spawnarem no mesmo pixel
-                const safeD = d < 0.1 ? 0.1 : d;
-                
-                this.x += (target.x - this.x)/safeD * 2;
-                this.y += (target.y - this.y)/safeD * 2;
-                this.bio.ATP -= 0.05;
-                
-                // Previne NaN se algo deu muito errado
-                if (isNaN(this.x)) this.x = Math.random() * 800;
-                if (isNaN(this.y)) this.y = Math.random() * 600;
-            } else {
-                onReach();
-            }
-        }
-
-        execute() {
-            const job = JOBS[this.job];
-
-            if(this.action === 'GATHER') {
-                // Valida se alvo ainda existe e tem recursos
-                if(!this.target || this.target.amt <= 0) {
-                    this.target = resources.find(r => r.type === job.target && r.amt > 0);
-                }
-                
-                if(this.target) this.moveTo(this.target, () => {
-                    // Lógica de Propriedade
-                    if(this.target.ownerID !== null && this.target.ownerID !== this.id) {
-                        const owner = npcs.find(n => n.id === this.target.ownerID);
-                        if(owner && owner.alive && owner.dist(this) < 100) {
-                            owner.neuro.ADR += 20;
-                            owner.underAttack = true;
-                            worldStats.crimes++;
-                            createPopup(this.x, this.y, "ROUBO!", "red");
-                        }
-                    } else if(this.target.ownerID === null) {
-                        this.target.ownerID = this.id;
-                    }
-
-                    this.target.amt--;
-                    this.inv[job.raw]++;
-                    this.bio.ATP -= 2;
-                    this.bio.H2O -= 1;
-                    if(this.target.amt <= 0) this.target = null; // Limpa alvo esgotado
-                });
-            }
-
-            else if(this.action === 'REFINE') {
-                this.moveTo(this.stockpile, () => {
-                    if(this.inv[job.raw] > 0) {
-                        this.inv[job.raw]--;
-                        this.inv[job.prod]++;
-                        this.bio.ATP -= 3;
-                    }
-                });
-            }
-
-            else if(this.action === 'TRADE') {
-                if(!this.target || !this.target.alive) this.target = npcs.find(n => n !== this && n.alive);
-                
-                if(this.target) this.moveTo(this.target, () => {
-                    if(this.target.inv.GOLD >= 10 && this.inv[job.prod] > 0) {
-                        this.inv[job.prod]--;
-                        this.inv.GOLD += 10;
-                        this.target.inv[job.prod]++;
-                        this.target.inv.GOLD -= 10;
-                        this.neuro.OXY += 5;
-                        createPopup(this.x, this.y, "$$$", "#f1c40f");
-                    }
-                });
-            }
-
-            else if(this.action === 'SLEEP') {
-                this.bio.ATP += 2;
-                this.neuro.CRT -= 0.5;
-            }
-
-            else if(this.action === 'EAT') {
-                if(this.inv['PAO'] > 0) {
-                    this.inv['PAO']--;
-                    this.bio.GLUC += 50;
-                    this.bio.FAT += 10;
-                    createPopup(this.x, this.y, "NHAC", "#2ecc71");
-                } else if(this.inv.GOLD >= 5) {
-                    this.inv.GOLD -= 5;
-                    this.bio.GLUC += 40;
-                }
-            }
-
-            else if(this.action === 'FIGHT') {
-                const enemy = npcs.find(n => n !== this && n.alive && this.dist(n) < 20);
-                if(enemy) {
-                    enemy.bio.PROT -= 10;
-                    enemy.bio.H2O -= 10;
-                    enemy.neuro.CRT += 20;
-                    this.neuro.ADR += 10;
-                    createPopup(enemy.x, enemy.y, "POW", "red");
-                }
-            }
-            
-            else if(this.action === 'FLEE') {
-                this.x += (Math.random()-0.5) * 5;
-                this.y += (Math.random()-0.5) * 5;
-                this.bio.ATP -= 1;
-            }
-        }
-    }
-
-    /** ENGINE */
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    let resources = [], stockpiles = [], npcs = [];
-    let worldStats = { crimes: 0, deaths: 0 };
-    let speed = 1;
-    let hoveredNPC = null;
-    let animationID; // Controle do Loop
-
-    function initWorld() {
-        if(canvas.width === 0) {
-             canvas.width = document.getElementById('game-view').offsetWidth;
-             canvas.height = document.getElementById('game-view').offsetHeight;
-        }
-
-        resources = []; stockpiles = []; npcs = [];
-        worldStats = { crimes: 0, deaths: 0 };
-
-        for(let i=0; i<30; i++) {
-            const type = Math.random()>0.6 ? 'ROCK' : (Math.random()>0.5 ? 'TREE' : 'FIELD');
-            resources.push(new Resource(type, Math.random()*canvas.width, Math.random()*canvas.height));
-        }
-
-        for(let i=0; i<15; i++) npcs.push(new NPC(i));
-    }
-
-    function createPopup(x, y, text, color) {
-        const d = document.createElement('div');
-        d.className = 'float-text'; d.innerText = text; d.style.color = color;
-        d.style.left = x+'px'; d.style.top = y+'px';
-        document.getElementById('overlay').appendChild(d);
-        setTimeout(()=>d.remove(), 1500);
-    }
-
-    function draw() {
-        ctx.fillStyle = '#151b24'; ctx.fillRect(0,0,canvas.width, canvas.height);
-
-        resources.forEach(r => {
-            if(r.amt <= 0) return;
-            const sz = 3 + (r.amt/15);
-            ctx.fillStyle = r.type==='FIELD'?'#f1c40f':(r.type==='TREE'?'#27ae60':'#95a5a6');
-            ctx.beginPath(); ctx.arc(r.x, r.y, sz, 0, Math.PI*2); ctx.fill();
-            if(r.ownerID !== null) {
-                ctx.strokeStyle = 'rgba(231,76,60,0.4)'; ctx.beginPath(); ctx.arc(r.x, r.y, 15, 0, Math.PI*2); ctx.stroke();
-            }
-        });
-
-        stockpiles.forEach(s => {
-            const owner = npcs.find(n => n.id === s.ownerID);
-            if(!owner || !owner.alive) return;
-            ctx.fillStyle = s.color; ctx.fillRect(s.x-8, s.y-8, 16, 16);
-            ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.arc(s.x, s.y, 50, 0, Math.PI*2); ctx.stroke();
-        });
-
-        npcs.forEach(n => {
-            if(!n.alive) { ctx.fillStyle='#444'; ctx.fillText('💀', n.x-5, n.y+5); return; }
-            if(n.activeTraits.includes('BERSERKER')) ctx.fillStyle = '#c0392b';
-            else if(n.activeTraits.includes('COVARDE')) ctx.fillStyle = '#34495e';
-            else ctx.fillStyle = JOBS[n.job].color;
-            
-            const mass = 4 + (n.bio.FAT + n.bio.PROT)/200;
-            ctx.beginPath(); ctx.arc(n.x, n.y, mass, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = 'black'; ctx.fillRect(n.x-8, n.y-12, 16, 3);
-            ctx.fillStyle = '#2ecc71'; ctx.fillRect(n.x-8, n.y-12, 16*(n.bio.ATP/100), 3);
-        });
-    }
-
-    function updateUI() {
-        document.getElementById('st-pop').innerText = npcs.filter(n=>n.alive).length;
-        document.getElementById('st-dead').innerText = worldStats.deaths;
-        document.getElementById('st-crime').innerText = worldStats.crimes;
-
-        if(hoveredNPC && hoveredNPC.alive) {
-            const n = hoveredNPC;
-            document.getElementById('scanner-card').style.display = 'block';
-            document.getElementById('p-name').innerText = `Cidadão #${n.id}`;
-            document.getElementById('p-job').innerText = JOBS[n.job].label;
-            document.getElementById('p-action').innerText = n.action;
-
-            const drawBar = (id, val, max, col) => {
-                const w = Math.min(100, (val/max)*100);
-                return `<div class="stat-row"><span>${id}</span><span>${val.toFixed(0)}</span></div>
-                        <div class="bar-container"><div class="bar-fill" style="width:${w}%; background:${col}"></div></div>`;
-            };
-
-            let bioH = '';
-            for(let k in n.bio) bioH += drawBar(SUBSTANCES[k].name, n.bio[k], SUBSTANCES[k].max, SUBSTANCES[k].color);
-            document.getElementById('p-bio').innerHTML = bioH;
-
-            let neuroH = '';
-            for(let k in n.neuro) neuroH += drawBar(SUBSTANCES[k].name, n.neuro[k], 100, SUBSTANCES[k].color);
-            document.getElementById('p-neuro').innerHTML = neuroH;
-
-            let traitsH = '';
-            n.activeTraits.forEach(t => traitsH += `<span class="tag" style="background:${TRAITS[t].color}">${t}</span>`);
-            document.getElementById('p-traits').innerHTML = traitsH || '<span style="color:#555; font-size:10px">Neutro</span>';
-
-            let ecoH = `<div class="stat-row"><span style="color:#f1c40f">Ouro</span><span>$${n.inv.GOLD}</span></div>`;
-            for(let k in n.inv) if(k!=='GOLD' && n.inv[k]>0) ecoH += `<div class="stat-row"><span>${k}</span><span>${n.inv[k]}</span></div>`;
-            document.getElementById('p-eco').innerHTML = ecoH;
-
-        } else {
-            document.getElementById('scanner-card').style.display = 'none';
-        }
-    }
-
-    // CORREÇÃO: Gerenciamento de Loop Seguro
-    function resetSim() {
-        cancelAnimationFrame(animationID); // Para o loop atual
-        initWorld(); // Re-inicializa dados
-        loop(); // Inicia novo loop
-    }
-
-    window.toggleSpeed = () => { speed = speed === 1 ? 20 : 1; };
-    window.resetSim = resetSim;
-
-    canvas.addEventListener('mousemove', e => {
-        const r = canvas.getBoundingClientRect();
-        hoveredNPC = npcs.find(n => Math.hypot(n.x - (e.clientX-r.left), n.y - (e.clientY-r.top)) < 20);
-    });
-
-    // START
-    initWorld();
-    
-    function loop() {
-        try {
-            for(let i=0; i<speed; i++) {
-                npcs.forEach(n => n.update());
-                if(Math.random() < 0.02) {
-                    const r = resources[Math.floor(Math.random()*resources.length)];
-                    if(r && r.amt < 50) r.amt++;
-                }
-            }
-            draw();
-            updateUI();
-            animationID = requestAnimationFrame(loop);
-        } catch (err) {
-            console.error("Simulação parada devido a erro:", err);
-            document.getElementById('error-msg').style.display = 'block';
-        }
-    }
-    loop();
-
-</script>
+    <script src="js/config.js"></script>
+    <script src="js/core/brain.js"></script>
+    <script src="js/systems/bio.js"></script>
+    <script src="js/systems/neuro.js"></script>
+    <script src="js/systems/ai.js"></script>
+    <script src="js/entities/entity.js"></script>
+    <script src="js/entities/props.js"></script>
+    <script src="js/entities/npc.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>
